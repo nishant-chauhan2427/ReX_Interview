@@ -12,7 +12,7 @@ import { postForm } from "../utils/api";
 import { toast } from "react-hot-toast";
 
 interface Step3AadharVerificationProps {
-  onNext: (data: AadharData) => void;
+  onNext: (data: AadharData | null) => void;
 }
 
 export interface AadharData {
@@ -34,84 +34,80 @@ export function Step3AadharVerification({
   const [useFileUpload, setUseFileUpload] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isAligned, setIsAligned] = useState(false);
-const [isTooSmall, setIsTooSmall] = useState(false);
-const [isTooClose, setIsTooClose] = useState(false);
-const [stillStartTime, setStillStartTime] = useState<number | null>(null);
-
+  const [isTooSmall, setIsTooSmall] = useState(false);
+  const [isTooClose, setIsTooClose] = useState(false);
+  const [stillStartTime, setStillStartTime] = useState<number | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const analysisCanvasRef = useRef<HTMLCanvasElement>(null);
 
-
-
   const analyzeFrame = () => {
-  if (!videoRef.current || !analysisCanvasRef.current) return;
+    if (!videoRef.current || !analysisCanvasRef.current) return;
 
-  const video = videoRef.current;
-  const canvas = analysisCanvasRef.current;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
+    const video = videoRef.current;
+    const canvas = analysisCanvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-  // Downscale for performance
-  canvas.width = 160;
-  canvas.height = 100;
+    // Downscale for performance
+    canvas.width = 160;
+    canvas.height = 100;
 
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const data = imageData.data;
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
 
-  let edgeCount = 0;
-  let brightnessSum = 0;
+    let edgeCount = 0;
+    let brightnessSum = 0;
 
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
 
-    const brightness = (r + g + b) / 3;
-    brightnessSum += brightness;
+      const brightness = (r + g + b) / 3;
+      brightnessSum += brightness;
 
-    // crude edge detection
-    if (brightness < 90 || brightness > 220) {
-      edgeCount++;
+      // crude edge detection
+      if (brightness < 90 || brightness > 220) {
+        edgeCount++;
+      }
     }
-  }
 
-  const edgeRatio = edgeCount / (data.length / 4);
+    const edgeRatio = edgeCount / (data.length / 4);
 
-  // 🔍 heuristics (tuned for Aadhaar-like cards)
-  const tooSmall = edgeRatio < 0.08;
-  const tooClose = edgeRatio > 0.35;
-  const aligned = !tooSmall && !tooClose;
+    // 🔍 heuristics (tuned for Aadhaar-like cards)
+    const tooSmall = edgeRatio < 0.08;
+    const tooClose = edgeRatio > 0.35;
+    const aligned = !tooSmall && !tooClose;
 
-  setIsTooSmall(tooSmall);
-  setIsTooClose(tooClose);
-  setIsAligned(aligned);
+    setIsTooSmall(tooSmall);
+    setIsTooClose(tooClose);
+    setIsAligned(aligned);
 
-  // 🟢 Stillness detection
-  if (aligned) {
-    if (!stillStartTime) {
-      setStillStartTime(Date.now());
-    } else if (Date.now() - stillStartTime > 1000) {
-      capturePhoto(); // AUTO CAPTURE
+    // 🟢 Stillness detection
+    if (aligned) {
+      if (!stillStartTime) {
+        setStillStartTime(Date.now());
+      } else if (Date.now() - stillStartTime > 1000) {
+        capturePhoto(); // AUTO CAPTURE
+        setStillStartTime(null);
+      }
+    } else {
       setStillStartTime(null);
     }
-  } else {
-    setStillStartTime(null);
-  }
-};
+  };
 
-useEffect(() => {
-  if (!isCameraActive) return;
+  useEffect(() => {
+    if (!isCameraActive) return;
 
-  const interval = setInterval(analyzeFrame, 300);
+    const interval = setInterval(analyzeFrame, 300);
 
-  return () => clearInterval(interval);
-}, [isCameraActive, captureMode, frontImage, backImage]);
-
+    return () => clearInterval(interval);
+  }, [isCameraActive, captureMode, frontImage, backImage]);
 
   // Initialize camera
   const startCamera = async () => {
@@ -157,6 +153,11 @@ useEffect(() => {
     stream?.getTracks().forEach((track) => track.stop());
     setStream(null);
     setIsCameraActive(false);
+  };
+
+  const handleSkip = () => {
+    localStorage.setItem("isaadhaarcard", "false");
+    onNext(null);
   };
 
   // Capture photo
@@ -232,6 +233,13 @@ useEffect(() => {
 
   // Handle next
   const handleNext = async () => {
+    // 👉 If user skipped Aadhaar
+    if (!frontImage || !backImage) {
+      localStorage.setItem("isaadhaarcard", "false");
+      onNext(null);
+      return;
+    }
+
     if (!frontImage || !backImage) return;
 
     setIsLoading(true);
@@ -247,15 +255,9 @@ useEffect(() => {
       formData.append("candidate_id", candidate_id);
       formData.append("candidate_name", candidate_name);
 
-      const data = await postForm(
-        "/auth/upload-aadhaar-card",
-        formData,
-      );
-      if(!data.ok)(
-        console.log(data.text,"fsdgfhgjh")
-      )
+      const data = await postForm("/auth/upload-aadhaar-card", formData);
+      if (!data.ok) console.log(data.text, "fsdgfhgjh");
       console.log(data, "aadhaar response");
-      
 
       localStorage.setItem("isaadhaarcard", "true");
 
@@ -264,21 +266,20 @@ useEffect(() => {
         backImage,
         extractedData: data.extracted_fields,
       });
-    }catch (err: any) {
-  console.error("Aadhaar upload failed:", err);
+    } catch (err: any) {
+      console.error("Aadhaar upload failed:", err);
 
-  // Default fallback
-  let message = "Aadhaar verification failed. Please try again.";
+      // Default fallback
+      let message = "Aadhaar verification failed. Please try again.";
 
-  // Our API utilities always throw Error with message
-  if (err instanceof Error) {
-    message = err.message;
-  }
+      // Our API utilities always throw Error with message
+      if (err instanceof Error) {
+        message = err.message;
+      }
 
-  setCameraError(message);
-  toast.error(message);
-}
- finally {
+      setCameraError(message);
+      toast.error(message);
+    } finally {
       setIsLoading(false);
     }
   };
@@ -314,31 +315,30 @@ useEffect(() => {
 
   const canProceed = frontImage && backImage && !isLoading;
 
+  function AadhaarFrameOverlay() {
+    const borderColor = isAligned
+      ? "border-green-500"
+      : isTooSmall
+        ? "border-yellow-400"
+        : isTooClose
+          ? "border-red-500"
+          : "border-secondary";
 
- function AadhaarFrameOverlay() {
-  const borderColor = isAligned
-    ? "border-green-500"
-    : isTooSmall
-    ? "border-yellow-400"
-    : isTooClose
-    ? "border-red-500"
-    : "border-secondary";
+    const message = isAligned
+      ? "Perfect! Hold still…"
+      : isTooSmall
+        ? "Move closer"
+        : isTooClose
+          ? "Move farther"
+          : "Align Aadhaar card inside the frame";
 
-  const message = isAligned
-    ? "Perfect! Hold still…"
-    : isTooSmall
-    ? "Move closer"
-    : isTooClose
-    ? "Move farther"
-    : "Align Aadhaar card inside the frame";
+    return (
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 bg-black/40" />
 
-  return (
-    <div className="pointer-events-none absolute inset-0">
-      <div className="absolute inset-0 bg-black/40" />
-
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div
-          className={`
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div
+            className={`
             relative
             aspect-[1.6/1]
             w-[80%]
@@ -349,26 +349,32 @@ useEffect(() => {
             rounded-xl
             transition-colors duration-200
           `}
-        >
-          {/* Corners */}
-          <span className={`absolute top-0 left-0 w-4 h-4 border-l-4 border-t-4 ${borderColor}`} />
-          <span className={`absolute top-0 right-0 w-4 h-4 border-r-4 border-t-4 ${borderColor}`} />
-          <span className={`absolute bottom-0 left-0 w-4 h-4 border-l-4 border-b-4 ${borderColor}`} />
-          <span className={`absolute bottom-0 right-0 w-4 h-4 border-r-4 border-b-4 ${borderColor}`} />
+          >
+            {/* Corners */}
+            <span
+              className={`absolute top-0 left-0 w-4 h-4 border-l-4 border-t-4 ${borderColor}`}
+            />
+            <span
+              className={`absolute top-0 right-0 w-4 h-4 border-r-4 border-t-4 ${borderColor}`}
+            />
+            <span
+              className={`absolute bottom-0 left-0 w-4 h-4 border-l-4 border-b-4 ${borderColor}`}
+            />
+            <span
+              className={`absolute bottom-0 right-0 w-4 h-4 border-r-4 border-b-4 ${borderColor}`}
+            />
 
-          {/* Message */}
-          <div className="absolute bottom-2 w-full text-center">
-            <span className="text-xs bg-black/70 px-2 py-1 rounded text-white">
-              {message}
-            </span>
+            {/* Message */}
+            <div className="absolute bottom-2 w-full text-center">
+              <span className="text-xs bg-black/70 px-2 py-1 rounded text-white">
+                {message}
+              </span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
@@ -641,9 +647,20 @@ useEffect(() => {
             </AnimatePresence>
 
             <motion.button
-  onClick={handleNext}
-  disabled={!canProceed}
-  className={`
+              onClick={handleSkip}
+              className="flex-1 px-6 py-4 rounded-xl border border-border
+             bg-transparent text-muted-foreground
+             hover:bg-accent transition-all"
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+            >
+              Skip for now
+            </motion.button>
+
+            <motion.button
+              onClick={handleNext}
+              disabled={!canProceed}
+              className={`
     flex-1 px-6 py-4 rounded-xl transition-all
     flex items-center justify-center gap-2
     ${
@@ -652,21 +669,20 @@ useEffect(() => {
         : "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
     }
   `}
-  whileHover={canProceed ? { scale: 1.01 } : {}}
-  whileTap={canProceed ? { scale: 0.99 } : {}}
->
-  {isLoading ? (
-    <>
-      <RefreshCw className="w-5 h-5 animate-spin" />
-      Verifying Aadhaar…
-    </>
-  ) : canProceed ? (
-    "Continue"
-  ) : (
-    "Capture both sides to continue"
-  )}
-</motion.button>
-
+              whileHover={canProceed ? { scale: 1.01 } : {}}
+              whileTap={canProceed ? { scale: 0.99 } : {}}
+            >
+              {isLoading ? (
+                <>
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                  Verifying Aadhaar…
+                </>
+              ) : canProceed ? (
+                "Continue"
+              ) : (
+                "Capture both sides to continue"
+              )}
+            </motion.button>
           </div>
         </div>
       </motion.div>

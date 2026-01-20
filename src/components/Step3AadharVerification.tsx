@@ -476,7 +476,7 @@ useEffect(() => {
                       autoPlay
                       playsInline
                       muted
-                      className="w-full h-full object-cover -scale-x-100"
+                      className="w-full h-full object-cover"
                     />
 
                     <AadhaarFrameOverlay />
@@ -526,7 +526,7 @@ useEffect(() => {
                       autoPlay
                       playsInline
                       muted
-                      className="w-full h-full object-cover -scale-x-100"
+                      className="w-full h-full object-cover"
                     />
                     <AadhaarFrameOverlay />
                     {/* Scan line effect */}

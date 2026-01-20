@@ -124,7 +124,7 @@ export function Step4PhotoCapture({
                   autoPlay
                   muted
                   playsInline
-                  className={`w-full h-full object-cover transition-opacity duration-300 ${
+                  className={`w-full h-full object-cover transition-opacity duration-300 -scale-x-100 ${
                     capturedPhoto ? "opacity-0" : "opacity-100"
                   }`}
                 />

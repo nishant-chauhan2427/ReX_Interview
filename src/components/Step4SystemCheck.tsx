@@ -230,7 +230,7 @@ export function Step4SystemCheck({ onNext }: Step4SystemCheckProps) {
               autoPlay
               muted
               playsInline
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover -scale-x-100"
             />
           ) : (
             <div className="h-full flex items-center justify-center text-muted-foreground">

@@ -513,7 +513,7 @@ useEffect(() => {
                       autoPlay
                       playsInline
                       muted
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover -scale-x-100"
                     />
 
                     <p className="text-sm text-muted-foreground">

@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+body.recording-active::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  border: 3px solid red;
+  pointer-events: none;
+  z-index: 50;
+}

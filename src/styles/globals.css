@@ -1,0 +1,190 @@
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 16px;
+  
+  /* AI Interview Platform - Dark Theme Colors */
+  --background: #0a0a0f;
+  --foreground: #e8eaed;
+  --card: rgba(20, 22, 30, 0.8);
+  --card-foreground: #e8eaed;
+  
+  /* Primary Accent - Neon Blue/Cyan */
+  --primary: #00d4ff;
+  --primary-foreground: #0a0a0f;
+  --primary-glow: rgba(0, 212, 255, 0.4);
+  
+  /* Secondary Accent - Violet/Teal */
+  --secondary: #8b5cf6;
+  --secondary-foreground: #e8eaed;
+  --secondary-glow: rgba(139, 92, 246, 0.3);
+  
+  /* Status Colors */
+  --status-ready: #10b981;
+  --status-attention: #f59e0b;
+  --status-processing: #3b82f6;
+  
+  /* UI Elements */
+  --muted: #1e1f2b;
+  --muted-foreground: #9ca3af;
+  --accent: #2d2f3f;
+  --accent-foreground: #e8eaed;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.05);
+  --input-background: rgba(20, 22, 30, 0.5);
+  
+  /* Glassmorphism */
+  --glass-bg: rgba(30, 31, 43, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --ring: var(--primary);
+  --radius: 0.75rem;
+  
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+}
+
+/**
+ * Base typography
+ */
+@layer base {
+  :where(:not(:has([class*=' text-']), :not(:has([class^='text-'])))) {
+    h1 {
+      font-size: var(--text-2xl);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+      letter-spacing: -0.02em;
+    }
+
+    h2 {
+      font-size: var(--text-xl);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+      letter-spacing: -0.01em;
+    }
+
+    h3 {
+      font-size: var(--text-lg);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h4 {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    label {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    button {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    input {
+      font-size: var(--text-base);
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+  }
+}
+
+html {
+  font-size: var(--font-size);
+}
+
+/* Custom Glassmorphism Utilities */
+@layer utilities {
+  .glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+  }
+  
+  .glow-border {
+    box-shadow: 0 0 20px var(--primary-glow);
+  }
+  
+  .glow-border-secondary {
+    box-shadow: 0 0 20px var(--secondary-glow);
+  }
+  
+  .pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+  
+  @keyframes pulse-glow {
+    0%, 100% {
+      box-shadow: 0 0 15px var(--primary-glow);
+    }
+    50% {
+      box-shadow: 0 0 25px var(--primary-glow), 0 0 35px var(--primary-glow);
+    }
+  }
+  
+  .scan-line {
+    animation: scan 3s linear infinite;
+  }
+  
+  @keyframes scan {
+    0% {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+    50% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+  }
+}
+

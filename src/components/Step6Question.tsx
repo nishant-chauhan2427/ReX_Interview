@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "axios";
+import { useSpeakQuestion } from "../hooks/useSpeakQuestion";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
@@ -394,6 +395,8 @@ useEffect(() => {
     setShowTranscript(false);
     setSelectedAnswer("");
   };
+
+  useSpeakQuestion(question.text, true);
 
   const progress = (questionNumber / totalQuestions) * 100;
 

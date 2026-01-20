@@ -509,7 +509,7 @@ const handlePhotoCapture = async (photo: string) => {
         )}
       </AnimatePresence>
 
-      <motion.div className='fixed w-full bottom-6 flex justify-center items-center'>Powered by 
+      <motion.div className='fixed w-full bottom-0 flex justify-center items-center'>Powered by 
         <img
           src="/PRAGYAN.AI-logo-dark.svg"
           alt="PRAGYAN.AI Logo"

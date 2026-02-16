@@ -223,7 +223,7 @@ useEffect(() => {
       // ✅ Proceed only if validation succeeds
       setCurrentStep(2);
     } catch (err) {
-      console.error("Link validation failed:", err);
+      console.error("Link validation failed: making live", err);
       alert("This interview link is invalid or expired.");
     }
   };

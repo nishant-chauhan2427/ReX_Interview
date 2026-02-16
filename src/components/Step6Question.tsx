@@ -7,7 +7,7 @@ import {
   MicOff,
   Video,
   AlertTriangle,
-  Eye,
+  Eye,Volume2,
   Monitor,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -15,6 +15,7 @@ import axios from "axios";
 import { useSpeakQuestion } from "../hooks/useSpeakQuestion";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
+
 
 interface Step6QuestionProps {
   questionNumber: number;
@@ -48,6 +49,8 @@ export function Step6Question({
   cameraStream,
   screenStream,
 }: Step6QuestionProps) {
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
   const [selectedAnswer, setSelectedAnswer] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [timeSpent, setTimeSpent] = useState(0);
@@ -396,7 +399,33 @@ useEffect(() => {
     setSelectedAnswer("");
   };
 
-  useSpeakQuestion(question.text, true);
+  // useSpeakQuestion(question.text, true);
+  // const speakQuestion = useSpeakQuestion(question.text, true);
+  const baseSpeakQuestion = useSpeakQuestion(question.text, true);
+
+  // const speakQuestion = () => {
+  //   setIsSpeaking(true);
+  //   baseSpeakQuestion();
+  
+  //   const interval = setInterval(() => {
+  //     if (!window.speechSynthesis.speaking) {
+  //       setIsSpeaking(false);
+  //       clearInterval(interval);
+  //     }
+  //   }, 100);
+  // };
+  const speakQuestion = async () => {
+    const res = await fetch(
+      `${API_BASE}/questions/${question.id}/speak`,
+      { method: "POST" }
+    );
+  
+    const data = await res.json();
+  
+    const audio = new Audio(data.audio_url);
+    audio.play();
+  };
+  
 
   const progress = (questionNumber / totalQuestions) * 100;
 
@@ -595,14 +624,90 @@ useEffect(() => {
             {/* Question Card */}
             <div className="glass-card rounded-3xl p-10 border border-border">
               {/* Question Header */}
-              <div className="flex items-start gap-4 mb-8">
+              {/* <div className="flex items-start gap-4 mb-8">
                 <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 pulse-glow">
                   <Brain className="w-6 h-6 text-primary" strokeWidth={1.5} />
                 </div>
                 <div className="flex-1">
                   <h2 className="text-2xl leading-relaxed">{question.text}</h2>
                 </div>
-              </div>
+              </div> */}
+              {/* Question Header */}
+<div className="flex items-start gap-4 mb-8">
+  {/* Brain Icon */}
+  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 pulse-glow">
+    <Brain className="w-6 h-6 text-primary" strokeWidth={1.5} />
+  </div>
+
+  {/* Question Text + Speaker */}
+  <div className="flex-1 flex items-start justify-between gap-4">
+    <h2 className="text-2xl leading-relaxed pr-4">
+      {question.text}
+    </h2>
+
+    {/* 🔊 Speaker Button */}
+    {/* <button
+      onClick={speakQuestion}
+      disabled={isRecording}
+      title="Repeat question"
+      className={`
+        p-2 rounded-full transition-all
+        ${
+          isRecording
+            ? "opacity-40 cursor-not-allowed"
+            : "hover:bg-primary/10 text-primary"
+        }
+      `}
+    >
+      <Volume2 className="w-5 h-5" />
+    </button> */}
+    <motion.button
+  onClick={speakQuestion}
+  disabled={isRecording}
+  title="Repeat question"
+  className={`
+    relative p-2 rounded-full transition-all
+    ${
+      isRecording
+        ? "opacity-40 cursor-not-allowed"
+        : "hover:bg-primary/10 text-primary"
+    }
+  `}
+  animate={
+    isSpeaking
+      ? {
+          scale: [1, 1.15, 1],
+        }
+      : { scale: 1 }
+  }
+  transition={{
+    duration: 0.8,
+    repeat: isSpeaking ? Infinity : 0,
+    ease: "easeInOut",
+  }}
+>
+  {/* 🔊 Glow Ring */}
+  {isSpeaking && (
+    <motion.span
+      className="absolute inset-0 rounded-full border border-primary/40"
+      animate={{
+        scale: [1, 1.6],
+        opacity: [0.6, 0],
+      }}
+      transition={{
+        duration: 1.2,
+        repeat: Infinity,
+        ease: "easeOut",
+      }}
+    />
+  )}
+
+  {/* Speaker Icon */}
+  <Volume2 className="w-5 h-5 relative z-10" />
+</motion.button>
+
+  </div>
+</div>
 
               {/* Answer Options */}
               {question.type === "multiple-choice" && question.options && (
@@ -795,7 +900,7 @@ useEffect(() => {
               </motion.button>
 
               {/* Skip Question Button */}
-              <motion.button
+              {/* <motion.button
                 onClick={handleSkip}
                 disabled={isSubmitting || isTranscribing}
                 className="
@@ -807,7 +912,17 @@ useEffect(() => {
                 whileTap={{ scale: 0.98 }}
               >
                 Skip Question
-              </motion.button>
+              </motion.button> */}
+              {questionNumber < totalQuestions && (
+  <motion.button
+    onClick={handleSkip}
+    disabled={isSubmitting || isTranscribing}
+    className="w-full mt-3 px-6 py-3 rounded-xl border border-border text-muted-foreground hover:bg-muted/40 transition-all"
+  >
+    Skip Question
+  </motion.button>
+)}
+
             </div>
           </div>
         </motion.div>

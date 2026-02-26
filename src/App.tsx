@@ -279,7 +279,7 @@ const handlePhotoCapture = async (photo: string) => {
     // ✅ Move to NEXT STEP
     handleNext();
   } catch (err: any) {
-    console.error("Photo upload error:", err);
+    console.error("Photo upload error_1:", err);
 
     // 🎯 Show REAL backend error
     const message =

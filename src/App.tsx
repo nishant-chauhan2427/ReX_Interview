@@ -347,7 +347,7 @@ const handlePhotoCapture = async (photo: string) => {
     toast.dismiss();
     setCurrentStep(8);
   } catch (err) {
-    console.error("Interview completion failed", err);
+    console.error("Interview completion failed_1", err);
     toast.error("Failed to finalize interview");
   }
 };

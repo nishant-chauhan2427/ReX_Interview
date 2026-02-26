@@ -598,7 +598,12 @@ useEffect(() => {
       toast.error("Could not play question audio");
     }
   };
-  
+  const isDisabled =
+  (questionNumber !== totalQuestions &&
+    !selectedAnswer &&
+    !showTranscript) ||
+  isSubmitting ||
+  isTranscribing;
 
   const progress = (questionNumber / totalQuestions) * 100;
 
@@ -1019,12 +1024,37 @@ useEffect(() => {
                   </div>
                 </div>
               )}
-
+              
+<motion.button
+  onClick={handleSubmit}
+  disabled={isDisabled}
+  className={`
+    w-full px-6 py-4 rounded-xl transition-all font-medium
+    ${
+      isDisabled
+        ? "bg-muted text-muted-foreground cursor-not-allowed opacity-50"
+        : "bg-primary text-primary-foreground hover:shadow-lg"
+    }
+  `}
+>
+  {isSubmitting
+    ? "Submitting..."
+    : questionNumber === totalQuestions
+      ? "Complete Interview"
+      : "Submit & Continue"}
+</motion.button>
               {/* Submit Button */}
-              <motion.button
+              {/* <motion.button
                 onClick={handleSubmit}
+                // disabled={
+                //   (!selectedAnswer && !showTranscript) ||
+                //   isSubmitting ||
+                //   isTranscribing
+                // }
                 disabled={
-                  (!selectedAnswer && !showTranscript) ||
+                  (questionNumber !== totalQuestions &&
+                    !selectedAnswer &&
+                    !showTranscript) ||
                   isSubmitting ||
                   isTranscribing
                 }
@@ -1044,7 +1074,7 @@ useEffect(() => {
                   : questionNumber === totalQuestions
                     ? "Complete Interview"
                     : "Submit & Continue"}
-              </motion.button>
+              </motion.button>w */}
 
               {/* Skip Question Button */}
               {/* <motion.button

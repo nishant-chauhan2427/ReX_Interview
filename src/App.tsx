@@ -203,7 +203,7 @@ useEffect(() => {
 
       setQuestions(mappedQuestions);
     } catch (err) {
-      console.error("Question fetch failed:", err);
+      console.error("Question fetch failed1:", err);
       alert("Failed to load interview questions.");
     }
   };

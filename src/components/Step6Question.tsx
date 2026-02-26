@@ -14,6 +14,9 @@ import toast from "react-hot-toast";
 import axios from "axios";
 import { useSpeakQuestion } from "../hooks/useSpeakQuestion";
 
+
+
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 
@@ -67,6 +70,9 @@ export function Step6Question({
     Number(import.meta.env.VITE_HEAD_POSE_INTERVAL_MS) || 5000;
   const violationCountRef = useRef(0);
   const lastViolationTsRef = useRef(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+// 🔹 Clean HTML tags from question text
+const cleanQuestionText = question.text.replace(/<[^>]*>/g, "").trim();
 
   const captureFrame = (): Promise<Blob | null> => {
     return new Promise((resolve) => {
@@ -112,6 +118,16 @@ useEffect(() => {
   // Clear audio chunks buffer
   audioChunksRef.current = [];
 }, [question.id]);
+/* ---------------- STOP TTS AUDIO ON QUESTION CHANGE ---------------- */
+useEffect(() => {
+  if (audioRef.current) {
+    audioRef.current.pause();
+    audioRef.current.src = "";
+    audioRef.current = null;
+  }
+  setIsSpeaking(false);
+}, [question.id]);
+
 
 
   /* ---------------- TIMER ---------------- */
@@ -143,6 +159,7 @@ useEffect(() => {
             "candidate_id",
             localStorage.getItem("candidate_id") || "",
           );
+          
           formData.append("reason", "User switched tabs");
           formData.append("timestamp", new Date().toISOString());
 
@@ -160,49 +177,107 @@ useEffect(() => {
     return () =>
       document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
+/* ---------------- HEAD POSE DETECTION ---------------- */
+useEffect(() => {
+  if (!cameraStream || !videoRef.current) return;
 
-  useEffect(() => {
-    if (!cameraStream || !videoRef.current) return;
+  let intervalId: number;
 
-    let intervalId: number;
+  const sendFrameForDetection = async () => {
+    try {
+      const frameBlob = await captureFrame();
+      if (!frameBlob) return;
 
-    const sendFrameForDetection = async () => {
-      try {
-        const frameBlob = await captureFrame();
-        if (!frameBlob) return;
+      const formData = new FormData();
+      formData.append("file", frameBlob, "frame.jpg");
+      formData.append(
+        "candidate_name",
+        localStorage.getItem("candidate_id") || ""
+      );
+      formData.append(
+        "session_id",
+        localStorage.getItem("session_id") || ""
+      );
 
-        const formData = new FormData();
-        formData.append("file", frameBlob, "frame.jpg");
-        formData.append(
-          "candidate_name",
-          localStorage.getItem("candidate_id") || "",
-        );
-        formData.append("session_id", localStorage.getItem("session_id") || "");
-
-        const { data } = await axios.post(
-          `${API_BASE}/status/detect_head_pose`,
-          formData,
-          {
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
-          },
-        );
-
-        // 🚨 Optional: act on cheating signal
-        if (data?.cheating === true) {
-          toast.error(data?.message || "Head pose violation detected");
+      const response = await axios.post(
+        `${API_BASE}/status/detect_head_pose`,
+        formData,
+        {
+          validateStatus: () => true, // 🔥 VERY IMPORTANT
         }
-      } catch (err) {
-        // ❗ Silent fail by design (do NOT interrupt interview)
-        console.warn("Head pose detection failed");
+      );
+
+      const data = response.data;
+
+      console.log("Head pose response:", data);
+
+      // 🔴 Always check cheating flag
+      if (data?.data?.cheating === true) {
+        toast.error(data?.message || "Cheating detected");
+        return;
       }
-    };
 
-    intervalId = window.setInterval(sendFrameForDetection, HEAD_POSE_INTERVAL);
+      // ⚠️ If backend sends warning
+      if (data?.message && data?.status_code !== 200) {
+        toast.error(data.message);
+      }
 
-    return () => clearInterval(intervalId);
-  }, [cameraStream]);
+    } catch (err) {
+      console.error("Network error:", err);
+      toast.error("Network error during head pose detection");
+    }
+  };
+
+  intervalId = window.setInterval(
+    sendFrameForDetection,
+    HEAD_POSE_INTERVAL
+  );
+
+  return () => clearInterval(intervalId);
+}, [cameraStream]);
+  // useEffect(() => {
+  //   if (!cameraStream || !videoRef.current) return;
+
+  //   let intervalId: number;
+
+  //   const sendFrameForDetection = async () => {
+  //     try {
+  //       const frameBlob = await captureFrame();
+  //       if (!frameBlob) return;
+
+  //       const formData = new FormData();
+  //       formData.append("file", frameBlob, "frame.jpg");
+  //       formData.append(
+  //         "candidate_name",
+  //         localStorage.getItem("candidate_id") || "",
+  //       );
+  //       formData.append("session_id", localStorage.getItem("session_id") || "");
+
+  //       const { data } = await axios.post(
+  //         `${API_BASE}/status/detect_head_pose`,
+  //         formData,
+  //         {
+  //           headers: {
+  //             "Content-Type": "multipart/form-data",
+  //           },
+  //         },
+  //       );
+  //       console.log(data,"data1122");
+        
+  //       // 🚨 Optional: act on cheating signal
+  //       if (data?.cheating === true) {
+  //         toast.error(data?.message || "Head pose violation detected");
+  //       }
+  //     } catch (err) {
+  //       // ❗ Silent fail by design (do NOT interrupt interview)
+  //       console.warn("Head pose detection failed");
+  //     }
+  //   };
+
+  //   intervalId = window.setInterval(sendFrameForDetection, HEAD_POSE_INTERVAL);
+
+  //   return () => clearInterval(intervalId);
+  // }, [cameraStream]);
 
   /* ---------------- RECORDING BORDER ---------------- */
   useEffect(() => {
@@ -414,16 +489,114 @@ useEffect(() => {
   //     }
   //   }, 100);
   // };
+  // const speakQuestion = async () => {
+  //   const res = await fetch(
+  //     `${API_BASE}/questions/${question.id}/speak`,
+  //     { method: "POST" }
+  //   );
+  
+  //   const data = await res.json();
+  
+  //   const audio = new Audio(data.audio_url);
+  //   audio.play();
+  // };
+  // const speakQuestion = async () => {
+  //   if (isRecording || isSpeaking) return;
+  
+  //   try {
+  //     setIsSpeaking(true);
+  
+  //     // ✅ Reuse single audio instance
+  //     if (!audioRef.current) {
+  //       audioRef.current = new Audio();
+  //     }
+  
+  //     const audio = audioRef.current;
+  
+  //     // Reset previous state
+  //     audio.pause();
+  //     audio.currentTime = 0;
+  //     audio.src = "";
+  
+  //     // 🔥 CRITICAL: call play() immediately in click context
+  //     // const playPromise = audio.play();
+  
+  //     const res = await fetch(
+  //       `${API_BASE}/questions/${question.id}/speak`,
+  //       { method: "POST" }
+  //     );
+  
+  //     const data = await res.json();
+  //     if (!data?.audio_url) {
+  //       throw new Error("Audio URL missing");
+  //     }
+  
+  //     // Set source AFTER play() is called
+  //     audio.src = data.audio_url;
+  
+  //     audio.onended = () => {
+  //       setIsSpeaking(false);
+  //     };
+  
+  //     audio.onerror = (e) => {
+  //       console.error("Audio playback error", e);
+  //       setIsSpeaking(false);
+  //       toast.error("Audio playback failed");
+  //     };
+  
+  //     await playPromise; // ✅ browser allows it now
+  //   } catch (err) {
+  //     console.error("Speak question failed", err);
+  //     setIsSpeaking(false);
+  //     toast.error("Could not play question audio");
+  //   }
+  // };
+  
   const speakQuestion = async () => {
-    const res = await fetch(
-      `${API_BASE}/questions/${question.id}/speak`,
-      { method: "POST" }
-    );
+    if (isRecording || isSpeaking) return;
   
-    const data = await res.json();
+    try {
+      setIsSpeaking(true);
   
-    const audio = new Audio(data.audio_url);
-    audio.play();
+      if (!audioRef.current) {
+        audioRef.current = new Audio();
+      }
+  
+      const audio = audioRef.current;
+  
+      // 1️⃣ Fetch audio URL FIRST
+      const res = await fetch(
+        `${API_BASE}/questions/${question.id}/speak`,
+        { method: "POST" }
+      );
+  
+      const data = await res.json();
+      if (!data?.audio_url) {
+        throw new Error("Audio URL missing");
+      }
+  
+      // 2️⃣ Set src BEFORE play
+      audio.src = data.audio_url;
+      audio.load(); // 🔥 important
+  
+      // 3️⃣ Play (user gesture context still valid)
+      await audio.play();
+  
+      audio.onended = () => {
+        setIsSpeaking(false);
+      };
+  
+      audio.onerror = (e) => {
+        console.error("Audio playback error", e);
+        setIsSpeaking(false);
+        toast.error("Audio playback failed");
+      };
+  
+    } catch (err) {
+      console.error("Speak question failed", err);
+      setIsSpeaking(false);
+      toast.error("Could not play question audio");
+    }
   };
   
 
@@ -641,9 +814,11 @@ useEffect(() => {
 
   {/* Question Text + Speaker */}
   <div className="flex-1 flex items-start justify-between gap-4">
+  
     <h2 className="text-2xl leading-relaxed pr-4">
-      {question.text}
-    </h2>
+  {cleanQuestionText}
+</h2>
+
 
     {/* 🔊 Speaker Button */}
     {/* <button
@@ -663,48 +838,20 @@ useEffect(() => {
     </button> */}
     <motion.button
   onClick={speakQuestion}
-  disabled={isRecording}
+  disabled={isRecording || isSpeaking}
   title="Repeat question"
   className={`
     relative p-2 rounded-full transition-all
     ${
-      isRecording
+      isRecording || isSpeaking
         ? "opacity-40 cursor-not-allowed"
         : "hover:bg-primary/10 text-primary"
     }
   `}
-  animate={
-    isSpeaking
-      ? {
-          scale: [1, 1.15, 1],
-        }
-      : { scale: 1 }
-  }
-  transition={{
-    duration: 0.8,
-    repeat: isSpeaking ? Infinity : 0,
-    ease: "easeInOut",
-  }}
 >
-  {/* 🔊 Glow Ring */}
-  {isSpeaking && (
-    <motion.span
-      className="absolute inset-0 rounded-full border border-primary/40"
-      animate={{
-        scale: [1, 1.6],
-        opacity: [0.6, 0],
-      }}
-      transition={{
-        duration: 1.2,
-        repeat: Infinity,
-        ease: "easeOut",
-      }}
-    />
-  )}
-
-  {/* Speaker Icon */}
-  <Volume2 className="w-5 h-5 relative z-10" />
+  <Volume2 className="w-5 h-5" />
 </motion.button>
+
 
   </div>
 </div>

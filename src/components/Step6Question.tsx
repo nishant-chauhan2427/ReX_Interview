@@ -177,6 +177,52 @@ useEffect(() => {
     return () =>
       document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
+  // const isLastQuestion = questionNumber === totalQuestions;
+  const handleCompleteInterview = async () => {
+    if (isSubmitting) return;
+  
+    setIsSubmitting(true);
+    const toastId = toast.loading("Completing interview...");
+  
+    try {
+      const formData = new FormData();
+      formData.append(
+        "candidate_id",
+        localStorage.getItem("candidate_id") || ""
+      );
+      formData.append(
+        "session_id",
+        localStorage.getItem("session_id") || ""
+      );
+  
+      const res = await fetch(`${API_BASE}/questions/complete_interview`, {
+        method: "POST",
+        body: formData,
+      });
+  
+      const data = await res.json();
+  
+      if (!res.ok) {
+        throw new Error(data?.message || "Failed to complete interview");
+      }
+  
+      toast.success("Interview completed successfully!", { id: toastId });
+  
+      // redirect ya parent ko notify
+      onAnswer({
+        questionId: question.id,
+        transcript: transcript,
+        timeSpent,
+      });
+  
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to complete interview", {
+        id: toastId,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 /* ---------------- HEAD POSE DETECTION ---------------- */
 useEffect(() => {
   if (!cameraStream || !videoRef.current) return;
@@ -414,58 +460,150 @@ useEffect(() => {
       setIsSubmitting(false);
     }
   };
+  const isLastQuestion = questionNumber === totalQuestions;
+  // const isLastQuestion = questionNumber === totalQuestions;
 
-  const handleSubmit = async () => {
-    if (!audioBlob || isSubmitting || !showTranscript) return;
+const handleSubmit = async () => {
+  if (isSubmitting) return;
 
-    setIsSubmitting(true);
+  setIsSubmitting(true);
 
-    const toastId = toast.loading("Submitting your answer...");
+  const toastId = toast.loading(
+    isLastQuestion
+      ? "Completing interview..."
+      : "Submitting your answer..."
+  );
 
-    try {
-      const formData = new FormData();
-      formData.append(
-        "candidate_id",
-        localStorage.getItem("candidate_id") || "",
+  try {
+    const formData = new FormData();
+    formData.append(
+      "candidate_id",
+      localStorage.getItem("candidate_id") || ""
+    );
+    formData.append("question_id", question.id);
+    formData.append("question", question.text);
+    formData.append(
+      "session_id",
+      localStorage.getItem("session_id") || ""
+    );
+
+    // 🔥 Only attach audio if it exists
+    if (audioBlob && showTranscript) {
+      const audioFile = new File(
+        [audioBlob],
+        `answer_${question.id}.webm`,
+        { type: "audio/webm" }
       );
-      formData.append("question_id", question.id);
-      formData.append("question", question.text);
-      formData.append("expected_answer", question.expected_answer || "");
-      formData.append("session_id", localStorage.getItem("session_id") || "");
-
-      const audioFile = new File([audioBlob], `answer_${question.id}.webm`, {
-        type: "audio/webm",
-      });
       formData.append("audio_file", audioFile);
+    }
 
-      const res = await fetch(`${API_BASE}/questions/submit_answer`, {
+    const res = await fetch(
+      `${API_BASE}/questions/submit_answer`,
+      {
         method: "POST",
         body: formData,
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.message || "Answer submission failed");
       }
+    );
 
-      toast.success(data?.message || "Answer submitted successfully", {
-        id: toastId,
-      });
+    const data = await res.json();
 
-      onAnswer({
-        questionId: question.id,
-        transcript: transcript,
-        timeSpent,
-      });
-    } catch (err: any) {
-      console.error("submit_answer failed", err);
-
-      toast.error(err?.message || "Failed to submit answer", { id: toastId });
-    } finally {
-      setIsSubmitting(false);
+    if (!res.ok) {
+      throw new Error(data?.error || "Submission failed");
     }
-  };
+
+    toast.success(
+      isLastQuestion
+        ? "Interview completed successfully!"
+        : "Answer submitted!",
+      { id: toastId }
+    );
+
+    onAnswer({
+      questionId: question.id,
+      transcript: transcript || "",
+      timeSpent,
+    });
+
+  } catch (err: any) {
+    toast.error(err?.message || "Submission failed", {
+      id: toastId,
+    });
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+//   const handleSubmit = async () => {
+    
+//     if (isSubmitting) return;
+
+// // For open-ended question validation
+// if (
+//   question.type === "open-ended" &&
+//   !showTranscript &&
+//   !isLastQuestion
+// ) {
+//   toast.error("Please record your answer first");
+//   return;
+// }
+
+// // For multiple choice validation
+// if (
+//   question.type === "multiple-choice" &&
+//   !selectedAnswer &&
+//   !isLastQuestion
+// ) {
+//   toast.error("Please select an option");
+//   return;
+// }
+
+//     setIsSubmitting(true);
+
+//     const toastId = toast.loading("Submitting your answer...");
+
+//     try {
+//       const formData = new FormData();
+//       formData.append(
+//         "candidate_id",
+//         localStorage.getItem("candidate_id") || "",
+//       );
+//       formData.append("question_id", question.id);
+//       formData.append("question", question.text);
+//       formData.append("expected_answer", question.expected_answer || "");
+//       formData.append("session_id", localStorage.getItem("session_id") || "");
+
+//       const audioFile = new File([audioBlob], `answer_${question.id}.webm`, {
+//         type: "audio/webm",
+//       });
+//       formData.append("audio_file", audioFile);
+
+//       const res = await fetch(`${API_BASE}/questions/submit_answer`, {
+//         method: "POST",
+//         body: formData,
+//       });
+
+//       const data = await res.json();
+
+//       if (!res.ok) {
+//         throw new Error(data?.message || "Answer submission failed");
+//       }
+
+//       toast.success(data?.message || "Answer submitted successfully", {
+//         id: toastId,
+//       });
+
+//       onAnswer({
+//         questionId: question.id,
+//         transcript: transcript,
+//         timeSpent,
+//       });
+//     } catch (err: any) {
+//       console.error("submit_answer failed", err);
+
+//       toast.error(err?.message || "Failed to submit answer", { id: toastId });
+//     } finally {
+//       setIsSubmitting(false);
+//     }
+//   };
 
   const handleRetake = () => {
     setAudioBlob(null);
@@ -598,9 +736,13 @@ useEffect(() => {
       toast.error("Could not play question audio");
     }
   };
-  const isDisabled =
-  (questionNumber !== totalQuestions &&
-    !selectedAnswer &&
+
+const isDisabled =
+  (!isLastQuestion &&
+    question.type === "multiple-choice" &&
+    !selectedAnswer) ||
+  (!isLastQuestion &&
+    question.type === "open-ended" &&
     !showTranscript) ||
   isSubmitting ||
   isTranscribing;
@@ -1027,6 +1169,11 @@ useEffect(() => {
               
 <motion.button
   onClick={handleSubmit}
+  // onClick={
+  //   questionNumber === totalQuestions
+  //     ? handleCompleteInterview
+  //     : handleSubmit
+  // }
   disabled={isDisabled}
   className={`
     w-full px-6 py-4 rounded-xl transition-all font-medium

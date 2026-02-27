@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState,useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
 
 import { decryptValue } from "./utils/decrypt";
@@ -175,38 +175,72 @@ useEffect(() => {
     return res.json();
   };
 
-  const fetchInterviewQuestions = async (testId: string) => {
-    try {
-      const API_BASE = import.meta.env.VITE_API_BASE_URL;
+// 1️⃣ Ek ref add karo — fetch sirf ek baar ho
+const questionsFetchedRef = useRef(false);
 
-      const res = await fetch(`${API_BASE}/testquestions/qa_test/${testId}`, {
-        headers: { accept: "application/json" },
-      });
+// 2️⃣ fetchInterviewQuestions mein guard lagao
+const fetchInterviewQuestions = async (testId: string) => {
+  if (questionsFetchedRef.current) return; // ✅ already fetched → skip
+  questionsFetchedRef.current = true;       // ✅ mark as fetched
 
-      if (!res.ok) {
-        throw new Error("Failed to fetch questions");
-      }
+  try {
+    const API_BASE = import.meta.env.VITE_API_BASE_URL;
+    const res = await fetch(`${API_BASE}/testquestions/qa_test/${testId}`, {
+      headers: { accept: "application/json" },
+    });
 
-      const json = await res.json();
+    if (!res.ok) throw new Error("Failed to fetch questions");
 
-      if (json.status_code !== 200) {
-        throw new Error("Invalid question response");
-      }
+    const json = await res.json();
+    if (json.status_code !== 200) throw new Error("Invalid question response");
 
-      // 🔁 Map API → UI format
-      const mappedQuestions = json.data.map((q: any) => ({
-        id: q.question_id,
-        text: q.question_text,
-        expected_answer: q.answers?.[0]?.answer_text,
-        type: "open-ended", // API gives reference answers, not MCQs
-      }));
+    const mappedQuestions = json.data.map((q: any) => ({
+      id: q.question_id,
+      text: q.question_text,
+      expected_answer: q.answers?.[0]?.answer_text,
+      type: "open-ended",
+    }));
 
-      setQuestions(mappedQuestions);
-    } catch (err) {
-      console.error("Question fetch failed1:", err);
-      alert("Failed to load interview questions.");
-    }
-  };
+    setQuestions(mappedQuestions);
+  } catch (err) {
+    questionsFetchedRef.current = false; // ✅ fail hone par reset karo retry ke liye
+    console.error("Question fetch failed:", err);
+    alert("Failed to load interview questions.");
+  }
+};
+
+  // const fetchInterviewQuestions = async (testId: string) => {
+  //   try {
+  //     const API_BASE = import.meta.env.VITE_API_BASE_URL;
+
+  //     const res = await fetch(`${API_BASE}/testquestions/qa_test/${testId}`, {
+  //       headers: { accept: "application/json" },
+  //     });
+
+  //     if (!res.ok) {
+  //       throw new Error("Failed to fetch questions");
+  //     }
+
+  //     const json = await res.json();
+
+  //     if (json.status_code !== 200) {
+  //       throw new Error("Invalid question response");
+  //     }
+
+  //     // 🔁 Map API → UI format
+  //     const mappedQuestions = json.data.map((q: any) => ({
+  //       id: q.question_id,
+  //       text: q.question_text,
+  //       expected_answer: q.answers?.[0]?.answer_text,
+  //       type: "open-ended", // API gives reference answers, not MCQs
+  //     }));
+
+  //     setQuestions(mappedQuestions);
+  //   } catch (err) {
+  //     console.error("Question fetch failed1:", err);
+  //     alert("Failed to load interview questions.");
+  //   }
+  // };
 
   /* ---------------- HELPERS ---------------- */
   const handleNext = () => setCurrentStep((s) => s + 1);
@@ -474,7 +508,7 @@ const handlePhotoCapture = async (photo: string) => {
           </motion.div>
         )}
 
-        {currentStep === 7 && (
+        {/* {currentStep === 7 && (
           <motion.div key="step7">
             <Step6Question
               questionNumber={currentQuestionIndex + 1}
@@ -485,7 +519,23 @@ const handlePhotoCapture = async (photo: string) => {
               screenStream={screenStream}
             />
           </motion.div>
-        )}
+        )} */}
+        {currentStep === 7 && questions.length > 0 && questions[currentQuestionIndex] ? (
+  <motion.div key="step7">
+    <Step6Question
+      questionNumber={currentQuestionIndex + 1}
+      totalQuestions={questions.length}
+      question={questions[currentQuestionIndex]}
+      onAnswer={handleAnswer}
+      cameraStream={cameraStream}
+      screenStream={screenStream}
+    />
+  </motion.div>
+) : currentStep === 7 ? (
+  <motion.div key="step7-loading" className="flex items-center justify-center h-screen">
+    <p className="text-muted-foreground animate-pulse">Loading questions...</p>
+  </motion.div>
+) : null}
 
         {currentStep === 8 && (
           <motion.div key="step8">

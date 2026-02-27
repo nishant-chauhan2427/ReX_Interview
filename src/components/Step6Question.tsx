@@ -532,6 +532,117 @@ const handleSubmit = async () => {
     setIsSubmitting(false);
   }
 };
+const handleFinalSubmit = async () => {
+  if (isSubmitting) return;
+
+  setIsSubmitting(true);
+  const toastId = toast.loading(
+    isLastQuestion ? "Completing interview..." : "Submitting answer..."
+  );
+
+  try {
+    const candidateId = localStorage.getItem("candidate_id") || "";
+    const sessionId = localStorage.getItem("session_id") || "";
+
+    // 🔹 NOT LAST QUESTION → normal submit
+    if (!isLastQuestion) {
+      const formData = new FormData();
+      formData.append("candidate_id", candidateId);
+      formData.append("question_id", question.id);
+      formData.append("question", question.text);
+      formData.append("session_id", sessionId);
+
+      if (audioBlob && showTranscript) {
+        const audioFile = new File(
+          [audioBlob],
+          `answer_${question.id}.webm`,
+          { type: "audio/webm" }
+        );
+        formData.append("audio_file", audioFile);
+      }
+
+      const res = await fetch(`${API_BASE}/questions/submit_answer`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Failed to submit answer");
+
+      toast.success("Answer submitted!", { id: toastId });
+      onAnswer({ questionId: question.id, transcript: transcript || "", timeSpent });
+      setIsSubmitting(false);
+      return;
+    }
+
+    // 🔹 LAST QUESTION LOGIC
+    const hasAnswer =
+      (question.type === "multiple-choice" && selectedAnswer) ||
+      (question.type === "open-ended" && showTranscript);
+
+    if (hasAnswer) {
+      // ✅ Answer diya hai → submit_answer call karo
+      const formData = new FormData();
+      formData.append("candidate_id", candidateId);
+      formData.append("question_id", question.id);
+      formData.append("question", question.text);
+      formData.append("session_id", sessionId);
+
+      if (audioBlob && showTranscript) {
+        const audioFile = new File(
+          [audioBlob],
+          `answer_${question.id}.webm`,
+          { type: "audio/webm" }
+        );
+        formData.append("audio_file", audioFile);
+      }
+
+      const submitRes = await fetch(`${API_BASE}/questions/submit_answer`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!submitRes.ok) throw new Error("Failed to submit last answer");
+
+    } else {
+      // ❌ Answer nahi diya → skip_question call karo
+      const skipFormData = new FormData();
+      skipFormData.append("candidate_id", candidateId);
+      skipFormData.append("question_id", question.id);
+      skipFormData.append("question", question.text);
+
+      const skipRes = await fetch(`${API_BASE}/questions/skip_question`, {
+        method: "POST",
+        body: skipFormData,
+      });
+
+      if (!skipRes.ok) throw new Error("Failed to skip last question");
+    }
+
+    // 🔹 Always call end-test after last question
+    const params = new URLSearchParams();
+    params.append("candidate_id", candidateId);
+
+    const endRes = await fetch(`${API_BASE}/questions/end-test`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        accept: "application/json",
+      },
+      body: params.toString(),
+    });
+
+    const endData = await endRes.json();
+    if (!endRes.ok) throw new Error(endData?.message || "Failed to complete interview");
+
+    toast.success("Interview completed successfully!", { id: toastId });
+    onAnswer({ questionId: question.id, transcript: transcript || "", timeSpent });
+
+  } catch (err: any) {
+    toast.error(err?.message || "Something went wrong", { id: toastId });
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 //   const handleSubmit = async () => {
     
 //     if (isSubmitting) return;
@@ -690,19 +801,58 @@ const handleSubmit = async () => {
   //   }
   // };
   
+  // const speakQuestion = async () => {
+  //   if (isRecording || isSpeaking) return;
+  
+  //   try {
+  //     setIsSpeaking(true);
+  
+  //     if (!audioRef.current) {
+  //       audioRef.current = new Audio();
+  //     }
+  
+  //     const audio = audioRef.current;
+  
+  //     // 1️⃣ Fetch audio URL FIRST
+  //     const res = await fetch(
+  //       `${API_BASE}/questions/${question.id}/speak`,
+  //       { method: "POST" }
+  //     );
+  
+  //     const data = await res.json();
+  //     if (!data?.audio_url) {
+  //       throw new Error("Audio URL missing");
+  //     }
+  
+  //     // 2️⃣ Set src BEFORE play
+  //     audio.src = data.audio_url;
+  //     audio.load(); // 🔥 important
+  
+  //     // 3️⃣ Play (user gesture context still valid)
+  //     await audio.play();
+  
+  //     audio.onended = () => {
+  //       setIsSpeaking(false);
+  //     };
+  
+  //     audio.onerror = (e) => {
+  //       console.error("Audio playback error", e);
+  //       setIsSpeaking(false);
+  //       toast.error("Audio playback failed");
+  //     };
+  
+  //   } catch (err) {
+  //     console.error("Speak question failed", err);
+  //     setIsSpeaking(false);
+  //     toast.error("Could not play question audio");
+  //   }
+  // };
   const speakQuestion = async () => {
     if (isRecording || isSpeaking) return;
   
     try {
       setIsSpeaking(true);
   
-      if (!audioRef.current) {
-        audioRef.current = new Audio();
-      }
-  
-      const audio = audioRef.current;
-  
-      // 1️⃣ Fetch audio URL FIRST
       const res = await fetch(
         `${API_BASE}/questions/${question.id}/speak`,
         { method: "POST" }
@@ -713,12 +863,8 @@ const handleSubmit = async () => {
         throw new Error("Audio URL missing");
       }
   
-      // 2️⃣ Set src BEFORE play
-      audio.src = data.audio_url;
-      audio.load(); // 🔥 important
-  
-      // 3️⃣ Play (user gesture context still valid)
-      await audio.play();
+      // ✅ Pehle onended/onerror set karo, PHIR play karo
+      const audio = new Audio();
   
       audio.onended = () => {
         setIsSpeaking(false);
@@ -730,13 +876,18 @@ const handleSubmit = async () => {
         toast.error("Audio playback failed");
       };
   
-    } catch (err) {
+      audio.src = data.audio_url;
+      audioRef.current = audio;
+  
+      // ✅ load() nahi chahiye jab src set karte ho
+      await audio.play();
+  
+    } catch (err: any) {
       console.error("Speak question failed", err);
       setIsSpeaking(false);
-      toast.error("Could not play question audio");
+      toast.error(err?.message || "Could not play question audio");
     }
   };
-
 const isDisabled =
   (!isLastQuestion &&
     question.type === "multiple-choice" &&
@@ -1147,9 +1298,9 @@ const isDisabled =
                         whileTap={{ scale: 0.95 }}
                       >
                         {isRecording ? (
-                          <MicOff className="w-6 h-6" strokeWidth={2} />
-                        ) : (
                           <Mic className="w-6 h-6" strokeWidth={2} />
+                        ) : (
+                          <MicOff className="w-6 h-6" strokeWidth={2} />
                         )}
                       </motion.button>
                     ) : (
@@ -1166,8 +1317,25 @@ const isDisabled =
                   </div>
                 </div>
               )}
-              
-<motion.button
+    <motion.button
+  onClick={handleFinalSubmit}
+  disabled={isSubmitting || isTranscribing}
+  className={`
+    w-full px-6 py-4 rounded-xl transition-all font-medium
+    ${
+      isSubmitting || isTranscribing
+        ? "bg-muted text-muted-foreground cursor-not-allowed opacity-50"
+        : "bg-primary text-primary-foreground hover:shadow-lg"
+    }
+  `}
+>
+  {isSubmitting
+    ? "Submitting..."
+    : isLastQuestion
+      ? "Complete Interview"
+      : "Submit & Continue"}
+</motion.button>        
+{/* <motion.button
   onClick={handleSubmit}
   // onClick={
   //   questionNumber === totalQuestions
@@ -1189,7 +1357,7 @@ const isDisabled =
     : questionNumber === totalQuestions
       ? "Complete Interview"
       : "Submit & Continue"}
-</motion.button>
+</motion.button> */}
               {/* Submit Button */}
               {/* <motion.button
                 onClick={handleSubmit}

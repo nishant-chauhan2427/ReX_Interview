@@ -4,29 +4,18 @@ import { AnimatePresence, motion } from "motion/react";
 import { decryptValue } from "./utils/decrypt";
 import { Toaster, toast } from "react-hot-toast";
 import { StepIndicator } from "./components/StepIndicator";
-import { AlertStrip } from "./components/AlertStrip";
-import { ParticleCanvas } from "./components/ParticleCanvas";
 import { Step1Welcome } from "./components/Step1Welcome";
-import { StepHello } from "./components/StepHello";
 import { Step2UserDetails } from "./components/Step2UserDetails";
-import { StepJDConsent } from "./components/StepJDConsent";
-import { StepCandidateDetails } from "./components/StepCandidateDetails";
 import { Step3AadharVerification } from "./components/Step3AadharVerification";
 import { Step4PhotoCapture } from "./components/Step4PhotoCapture";
-import { StepScreenShare } from "./components/StepScreenShare";
-import { StepSystemCheck } from "./components/StepSystemCheck";
-import { StepGuidelines } from "./components/StepGuidelines";
+import { Step4SystemCheck } from "./components/Step4SystemCheck";
 import { Step5InterviewReady } from "./components/Step5InterviewReady";
 import { Step6Question } from "./components/Step6Question";
-import { StepThankYou } from "./components/StepThankYou";
-import { postForm, postJSON } from "./utils/api";
+import { Step7Completion } from "./components/Step7Completion";
+import { Step8Results } from "./components/Step8Results";
+import { Step9ThankYou } from "./components/Step9ThankYou";
+import { postForm } from "./utils/api";
 import axios from "axios";
-
-interface JDResponse {
-  success: boolean;
-  status_code: number;
-  data?: any;
-}
 
 /* ---------------- MOCK QUESTIONS ---------------- */
 let screenRecorder: MediaRecorder | null = null;
@@ -58,12 +47,9 @@ export const stopScreenRecording = (): Promise<Blob> => {
 
 export default function App() {
   const [currentStep, setCurrentStep] = useState(1);
-  const [alertOpen, setAlertOpen] = useState(true);
-  const [isDark] = useState(true);
 
   /* ---------------- URL DATA ---------------- */
   const [initialUserData, setInitialUserData] = useState(null);
-  const [jdData, setJdData] = useState<any>(null);
 
   /* ---------------- FLOW STATE ---------------- */
   const [userDetails, setUserDetails] = useState(null);
@@ -77,9 +63,9 @@ export default function App() {
   const [screenStream, setScreenStream] = useState(null);
 
   // ✅ ADD: holds real report summary from API
-  const [completedTime, setCompletedTime] = useState("");
+  const [reportSummary, setReportSummary] = useState(null);
 
-  const totalSteps = 11;
+  const totalSteps = 9;
   // const questions = mockQuestions.default;
   const [questions, setQuestions] = useState<QuestionData[]>([]);
   const [fullscreenViolated, setFullscreenViolated] = useState(false);
@@ -105,7 +91,7 @@ export default function App() {
   useEffect(() => {
   const handleFullscreenChange = async () => {
     if (
-      currentStep >= 9 && // interview started
+      currentStep >= 7 && // interview started
       !document.fullscreenElement &&
       !fullscreenViolated
     ) {
@@ -122,8 +108,7 @@ export default function App() {
       } catch {}
 
       // HARD STOP — end test immediately
-      setCompletedTime(new Date().toLocaleString());
-      setCurrentStep(11); // Thank You / End Screen
+      setCurrentStep(10); // Thank You / End Screen
     }
   };
 
@@ -137,7 +122,7 @@ export default function App() {
 
 useEffect(() => {
   const blockEsc = (e: KeyboardEvent) => {
-    if (e.key === "Escape" && currentStep >= 9) {
+    if (e.key === "Escape" && currentStep >= 7) {
       e.preventDefault();
       e.stopPropagation();
     }
@@ -150,12 +135,10 @@ useEffect(() => {
 
   useEffect(() => {
     const segments = window.location.pathname.split("/").filter(Boolean);
-    const searchParams = new URLSearchParams(window.location.search);
 
     let name = "";
     let email = "";
     let testId = "";
-    let token = "";
 
     segments.forEach((segment) => {
       if (segment.startsWith("name:")) {
@@ -173,54 +156,10 @@ useEffect(() => {
           decodeURIComponent(segment.replace("testid:", "")),
         );
       }
-
-      if (segment.startsWith("token:")) {
-        token = decodeURIComponent(segment.replace("token:", ""));
-      }
     });
-    token =
-      token ||
-      searchParams.get("token") ||
-      searchParams.get("auth_token") ||
-      searchParams.get("access_token") ||
-      "";
 
-console.log(testId,"testid");
-
-    setInitialUserData({ name, email, testId, token });
+    setInitialUserData({ name, email, testId });
   }, []);
-
-  useEffect(() => {
-    const fetchJDDetails = async () => {
-      if (!initialUserData?.testId) return;
-      try {
-        const JD_API_BASE =
-          import.meta.env.VITE_PRAGYAN_API_BASE_URL ||
-          "https://rex.vayuz.com/pragyan/ai/api/v1";
-        const headers: Record<string, string> = { accept: "application/json" };
-        if (initialUserData?.token) {
-          headers.authorization = `Bearer ${initialUserData.token}`;
-        }
-        const response = await fetch(
-          `${JD_API_BASE}/resume/jd/${encodeURIComponent(initialUserData.testId)}`,
-          { headers },
-        );
-
-        if (!response.ok) {
-          throw new Error("JD fetch failed");
-        }
-
-        const json: JDResponse = await response.json();
-        if (json.success && json.data) {
-          setJdData(json.data);
-        }
-      } catch (err) {
-        console.error("JD fetch failed:", err);
-      }
-    };
-
-    fetchJDDetails();
-  }, [initialUserData?.testId]);
 
   const validateEmailLink = async (email: string) => {
     const API_BASE = import.meta.env.VITE_API_BASE_URL;
@@ -314,11 +253,6 @@ const fetchInterviewQuestions = async (testId: string) => {
 
       // 🔥 VALIDATE EMAIL FROM URL
       await validateEmailLink(initialUserData.email);
-      localStorage.setItem("candidate_name", initialUserData.name || "");
-      localStorage.setItem("candidate_email", initialUserData.email || "");
-      localStorage.setItem("test_id", initialUserData.testId || "");
-      localStorage.setItem("auth_token", initialUserData.token || "");
-
 
       // ✅ Proceed only if validation succeeds
       setCurrentStep(2);
@@ -329,63 +263,8 @@ const fetchInterviewQuestions = async (testId: string) => {
   };
 
   const handleUserDetails = (data) => {
-    const registerCandidateIfNeeded = async () => {
-      const existing = localStorage.getItem("candidate_id");
-      if (existing) return;
-
-      if (!initialUserData?.name || !initialUserData?.email || !initialUserData?.testId) {
-        throw new Error("Candidate registration data missing");
-      }
-
-      const recaptchaKey = import.meta.env.VITE_RECAPTCHA_KEY as string | undefined;
-      let captchaToken = "";
-
-      if (recaptchaKey) {
-        if (!window.grecaptcha) {
-          await new Promise<void>((resolve, reject) => {
-            const script = document.createElement("script");
-            script.src = `https://www.google.com/recaptcha/api.js?render=${recaptchaKey}`;
-            script.async = true;
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error("Failed to load reCAPTCHA"));
-            document.body.appendChild(script);
-          });
-        }
-
-        captchaToken = await new Promise<string>((resolve, reject) => {
-          window.grecaptcha.ready(() => {
-            window.grecaptcha
-              .execute(recaptchaKey, { action: "submit" })
-              .then(resolve)
-              .catch(reject);
-          });
-        });
-      }
-
-      const regResponse = await postJSON("/register/candidate", {
-        name: initialUserData.name,
-        email: initialUserData.email,
-        test_id: initialUserData.testId,
-        ...(captchaToken ? { recaptcha_token: captchaToken } : {}),
-      });
-
-      localStorage.setItem("candidate_name", regResponse.name || initialUserData.name);
-      localStorage.setItem("candidate_email", initialUserData.email);
-      localStorage.setItem("test_id", regResponse.test_id || initialUserData.testId);
-      localStorage.setItem("candidate_id", regResponse.candidate_id);
-      localStorage.setItem("session_id", regResponse.session_id);
-    };
-
-    (async () => {
-      try {
-        await registerCandidateIfNeeded();
-        setUserDetails(data);
-        handleNext();
-      } catch (err: any) {
-        console.error("Candidate registration failed:", err);
-        toast.error(err?.message || "Failed to register candidate");
-      }
-    })();
+    setUserDetails(data);
+    handleNext();
   };
 
   const handleAadharVerification = async (data) => {
@@ -394,51 +273,16 @@ const fetchInterviewQuestions = async (testId: string) => {
     handleNext();
   };
 
-  const ensureMicAndAudioReady = async () => {
-    try {
-      const micStream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: false,
-      });
-      micStream.getTracks().forEach((t) => t.stop());
-
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const hasAudioInput = devices.some((d) => d.kind === "audioinput");
-      const hasAudioOutput = devices.some((d) => d.kind === "audiooutput");
-
-      if (!hasAudioInput) {
-        toast.error("Microphone device not detected.");
-        return false;
-      }
-
-      if (!hasAudioOutput) {
-        toast.error("Speaker/Audio output device not detected.");
-        return false;
-      }
-
-      return true;
-    } catch {
-      toast.error("Microphone permission is required before continuing.");
-      return false;
-    }
-  };
-
-  const handleSystemCheckComplete = async ({ camera, screen }) => {
-    const audioReady = await ensureMicAndAudioReady();
-    if (!audioReady) return;
-
+  const handleSystemCheckComplete = ({ camera, screen }) => {
     setCameraStream(camera);
     setScreenStream(screen);
-    setCurrentStep(7);
+    setCurrentStep(6);
   };
 
   // ✅ CHANGE: Upload candidate photo after capture
   
 const handlePhotoCapture = async (photo: string) => {
   try {
-
-    console.log(photo ,"this is photo ");
-    
     // 🔹 Convert base64 → Blob
     const blob = await fetch(photo).then((r) => r.blob());
 
@@ -481,7 +325,7 @@ const handlePhotoCapture = async (photo: string) => {
   }
 };
 
-  // ✅ Finalize interview before showing Thank You
+  // ✅ CHANGE: Fetch real report summary before Step8Results
   const handleInterviewComplete = async () => {
   try {
     const candidateId = localStorage.getItem("candidate_id");
@@ -523,7 +367,7 @@ const handlePhotoCapture = async (photo: string) => {
     body.append("candidate_id", candidateId);
     body.append("candidate_name", candidateName);
 
-    await axios.post(
+    const { data } = await axios.post(
       `${import.meta.env.VITE_API_BASE_URL}/questions/get_result`,
       body,
       {
@@ -533,9 +377,9 @@ const handlePhotoCapture = async (photo: string) => {
       },
     );
 
-    setCompletedTime(new Date().toLocaleString());
+    setReportSummary(data);
     toast.dismiss();
-    setCurrentStep(11);
+    setCurrentStep(8);
   } catch (err) {
     console.error("Interview completion failed_1", err);
     toast.error("Failed to finalize interview");
@@ -568,7 +412,6 @@ const handlePhotoCapture = async (photo: string) => {
     setPhotoData(null);
     setCurrentQuestionIndex(0);
     setAnswers([]);
-    setCompletedTime("");
   };
 
   const startCamera = async () => {
@@ -581,13 +424,6 @@ const handlePhotoCapture = async (photo: string) => {
 
     setCameraStream(stream);
     return stream;
-  };
-
-  const stepMotionProps = {
-    initial: { opacity: 0, y: 18, scale: 0.985 },
-    animate: { opacity: 1, y: 0, scale: 1 },
-    exit: { opacity: 0, y: -14, scale: 0.985 },
-    transition: { duration: 0.36, ease: [0.22, 1, 0.36, 1] as const },
   };
 
   /* ---------------- RENDER ---------------- */
@@ -604,10 +440,8 @@ const handlePhotoCapture = async (photo: string) => {
         },
       }}
     />
-    <ParticleCanvas isDark={isDark} />
-    <AlertStrip visible={alertOpen} onDismiss={() => setAlertOpen(false)} />
-    <div className="relative z-10 min-h-screen w-full text-foreground px-4 py-4">
-      <header className={`fixed left-12 ${alertOpen ? "top-14" : "top-4"}`}>
+    <div className="min-h-screen w-full bg-background text-foreground px-4 py-4">
+      <header className="fixed top-4 left-12">
         <motion.div className="flex justify-start  items-center">
           {" "}
           <img
@@ -619,54 +453,30 @@ const handlePhotoCapture = async (photo: string) => {
       </header>
       <StepIndicator currentStep={currentStep} totalSteps={totalSteps} />
 
-      <AnimatePresence mode="wait" initial={false}>
+      <AnimatePresence mode="wait">
         {currentStep === 1 && (
-          <motion.div key="step1" {...stepMotionProps}>
-            {/* <Step1Welcome onNext={handleStep1Next} /> */}
-            <StepHello
-              onBegin={handleStep1Next}
-              candidateName={initialUserData?.name}
-              jobTitle={jdData?.title || jdData?.metadata?.designation}
-              companyName={jdData?.metadata?.client_name}
-              jobLocation={jdData?.profile?.location}
-            />
+          <motion.div key="step1">
+            <Step1Welcome onNext={handleStep1Next} />
           </motion.div>
         )}
 
         {currentStep === 2 && initialUserData && (
-          <motion.div key="step2" {...stepMotionProps}>
-            {/* <Step2UserDetails
+          <motion.div key="step2">
+            <Step2UserDetails
               initialData={initialUserData}
               onNext={handleUserDetails}
-            /> */}
-            <StepJDConsent
-              onBack={() => setCurrentStep(1)}
-              onContinue={() => setCurrentStep(3)}
-              jdData={jdData}
             />
           </motion.div>
         )}
 
-        {/* {currentStep === 3 && (
-          <motion.div key="step3-candidate-details" {...stepMotionProps}>
-            <StepCandidateDetails
-              onBack={() => setCurrentStep(2)}
-              onContinue={() => handleUserDetails(initialUserData)}
-              candidateName={initialUserData?.name}
-              candidateEmail={initialUserData?.email}
-              jdData={jdData}
-            />
-          </motion.div>
-        )} */}
-
         {currentStep === 3 && (
-          <motion.div key="step3" {...stepMotionProps}>
+          <motion.div key="step3">
             <Step3AadharVerification onNext={handleAadharVerification} />
           </motion.div>
         )}
 
         {currentStep === 4 && (
-          <motion.div key="step4" {...stepMotionProps}>
+          <motion.div key="step4">
             <Step4PhotoCapture
               cameraStream={cameraStream}
               onNext={handlePhotoCapture}
@@ -675,27 +485,15 @@ const handlePhotoCapture = async (photo: string) => {
         )}
 
         {currentStep === 5 && (
-          <motion.div key="step5" {...stepMotionProps}>
-            <StepScreenShare
-              cameraStream={cameraStream}
-              onNext={handleSystemCheckComplete}
-            />
+          <motion.div key="step5">
+            <Step4SystemCheck onNext={handleSystemCheckComplete} />
           </motion.div>
         )}
 
         {currentStep === 6 && (
-          <motion.div key="step6" {...stepMotionProps}>
-            <StepSystemCheck
-              active={currentStep === 7}
-              onContinue={() => setCurrentStep(8)}
-            />
-          </motion.div>
-        )}
-
-        {currentStep === 7 && (
-          <motion.div key="step-guidelines" {...stepMotionProps}>
-            <StepGuidelines
-              onContinue={async () => {
+          <motion.div key="step6">
+            <Step5InterviewReady
+              onNext={async () => {
   await fetchInterviewQuestions(initialUserData?.testId);
   await enterFullscreen();
 
@@ -703,20 +501,27 @@ const handlePhotoCapture = async (photo: string) => {
     startScreenRecording(screenStream);
   }
 
-  setCurrentStep(9);
+  setCurrentStep(7);
 }}
+
             />
           </motion.div>
         )}
 
-        {currentStep === 8 && (
-          <motion.div key="step-ready" {...stepMotionProps}>
-            <Step5InterviewReady onNext={() => setCurrentStep(10)} />
+        {/* {currentStep === 7 && (
+          <motion.div key="step7">
+            <Step6Question
+              questionNumber={currentQuestionIndex + 1}
+              totalQuestions={questions.length}
+              question={questions[currentQuestionIndex]}
+              onAnswer={handleAnswer}
+              cameraStream={cameraStream}
+              screenStream={screenStream}
+            />
           </motion.div>
-        )}
-
-        {currentStep === 9 && questions.length > 0 && questions[currentQuestionIndex] ? (
-  <motion.div key="step7" {...stepMotionProps}>
+        )} */}
+        {currentStep === 7 && questions.length > 0 && questions[currentQuestionIndex] ? (
+  <motion.div key="step7">
     <Step6Question
       questionNumber={currentQuestionIndex + 1}
       totalQuestions={questions.length}
@@ -726,20 +531,30 @@ const handlePhotoCapture = async (photo: string) => {
       screenStream={screenStream}
     />
   </motion.div>
-) : currentStep === 9 ? (
-  <motion.div key="step7-loading" className="flex items-center justify-center h-screen" {...stepMotionProps}>
+) : currentStep === 7 ? (
+  <motion.div key="step7-loading" className="flex items-center justify-center h-screen">
     <p className="text-muted-foreground animate-pulse">Loading questions...</p>
   </motion.div>
 ) : null}
 
-        {currentStep === 10 && (
-          <motion.div key="step-thank-you" {...stepMotionProps}>
-            <StepThankYou
-              onStartOver={handleRestart}
-              completedTime={completedTime || new Date().toLocaleString()}
-              candidateName={localStorage.getItem("candidate_name") || initialUserData?.name || "Candidate"}
-              sessionId={localStorage.getItem("session_id") || "PAI-SESSION"}
+        {currentStep === 8 && (
+          <motion.div key="step8">
+            <Step7Completion onNext={handleNext} />
+          </motion.div>
+        )}
+
+        {currentStep === 9 && (
+          <motion.div key="step9">
+            <Step8Results
+              reportSummary={reportSummary}
+              onRestart={handleRestart}
             />
+          </motion.div>
+        )}
+
+        {currentStep === 10 && (
+          <motion.div key="step10">
+            <Step9ThankYou onRestart={handleRestart} />
           </motion.div>
         )}
       </AnimatePresence>

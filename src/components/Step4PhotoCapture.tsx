@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect, useRef } from "react";
+import { Sun, EyeOff, Smile, Camera } from "lucide-react";
 
 interface Step4PhotoCaptureProps {
   cameraStream: MediaStream;
@@ -95,7 +96,7 @@ export function Step4PhotoCapture({ cameraStream, onNext }: Step4PhotoCapturePro
           </div>
           <div className={`face-status${statusOk ? " ok" : ""}`}>{status}</div>
 
-          <div className="face-guide">
+          {/* <div className="face-guide">
             <div className="face-guide-item">
               <span className="fg-icon">💡</span>Good lighting
             </div>
@@ -108,7 +109,23 @@ export function Step4PhotoCapture({ cameraStream, onNext }: Step4PhotoCapturePro
             <div className="face-guide-item">
               <span className="fg-icon">📷</span>Face the camera
             </div>
-          </div>
+          </div> */}
+          {/* import { Sun, GlassesOff, Smile, Camera } from "lucide-react"; */}
+
+<div className="face-guide">
+  <div className="face-guide-item">
+    <span className="fg-icon"><Sun size={15} /></span>Good lighting
+  </div>
+  <div className="face-guide-item">
+    <span className="fg-icon"><EyeOff size={15} /></span>No glasses glare
+  </div>
+  <div className="face-guide-item">
+    <span className="fg-icon"><Smile size={15} /></span>Neutral expression
+  </div>
+  <div className="face-guide-item">
+    <span className="fg-icon"><Camera size={15} /></span>Face the camera
+  </div>
+</div>
         </div>
 
         <button

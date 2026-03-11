@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
 body.recording-active::after {
   content: "";
   position: fixed;
@@ -8,8 +13,16 @@ body.recording-active::after {
   pointer-events: none;
   z-index: 50;
 }
-.pai-card {
+/* .pai-card {
   min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem 1.5rem 1.5rem;
+} */
+.pai-card {
+  height: 100vh;          /* ✅ min-height hata ke height karo */
+  overflow: hidden;       /* ✅ scroll band */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -35,6 +48,8 @@ body.recording-active::after {
   display: flex;
   flex-direction: column;
   align-items: center;
+  max-height: 95vh;       /* ✅ screen se bahar na jaye */
+  overflow-y: auto;       
 }
 
 .hello-greeting {

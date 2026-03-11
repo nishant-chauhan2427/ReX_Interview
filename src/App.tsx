@@ -314,6 +314,11 @@ const fetchInterviewQuestions = async (testId: string) => {
 
       // 🔥 VALIDATE EMAIL FROM URL
       await validateEmailLink(initialUserData.email);
+      localStorage.setItem("candidate_name", initialUserData.name || "");
+      localStorage.setItem("candidate_email", initialUserData.email || "");
+      localStorage.setItem("test_id", initialUserData.testId || "");
+      localStorage.setItem("auth_token", initialUserData.token || "");
+
 
       // ✅ Proceed only if validation succeeds
       setCurrentStep(2);
@@ -642,7 +647,7 @@ const handlePhotoCapture = async (photo: string) => {
           </motion.div>
         )}
 
-        {currentStep === 3 && (
+        {/* {currentStep === 3 && (
           <motion.div key="step3-candidate-details" {...stepMotionProps}>
             <StepCandidateDetails
               onBack={() => setCurrentStep(2)}
@@ -652,15 +657,15 @@ const handlePhotoCapture = async (photo: string) => {
               jdData={jdData}
             />
           </motion.div>
-        )}
+        )} */}
 
-        {currentStep === 4 && (
+        {currentStep === 3 && (
           <motion.div key="step3" {...stepMotionProps}>
             <Step3AadharVerification onNext={handleAadharVerification} />
           </motion.div>
         )}
 
-        {currentStep === 5 && (
+        {currentStep === 4 && (
           <motion.div key="step4" {...stepMotionProps}>
             <Step4PhotoCapture
               cameraStream={cameraStream}
@@ -669,7 +674,7 @@ const handlePhotoCapture = async (photo: string) => {
           </motion.div>
         )}
 
-        {currentStep === 6 && (
+        {currentStep === 5 && (
           <motion.div key="step5" {...stepMotionProps}>
             <StepScreenShare
               cameraStream={cameraStream}
@@ -678,7 +683,7 @@ const handlePhotoCapture = async (photo: string) => {
           </motion.div>
         )}
 
-        {currentStep === 7 && (
+        {currentStep === 6 && (
           <motion.div key="step6" {...stepMotionProps}>
             <StepSystemCheck
               active={currentStep === 7}
@@ -687,7 +692,7 @@ const handlePhotoCapture = async (photo: string) => {
           </motion.div>
         )}
 
-        {currentStep === 8 && (
+        {currentStep === 7 && (
           <motion.div key="step-guidelines" {...stepMotionProps}>
             <StepGuidelines
               onContinue={async () => {
@@ -704,13 +709,13 @@ const handlePhotoCapture = async (photo: string) => {
           </motion.div>
         )}
 
-        {currentStep === 9 && (
+        {currentStep === 8 && (
           <motion.div key="step-ready" {...stepMotionProps}>
             <Step5InterviewReady onNext={() => setCurrentStep(10)} />
           </motion.div>
         )}
 
-        {currentStep === 10 && questions.length > 0 && questions[currentQuestionIndex] ? (
+        {currentStep === 9 && questions.length > 0 && questions[currentQuestionIndex] ? (
   <motion.div key="step7" {...stepMotionProps}>
     <Step6Question
       questionNumber={currentQuestionIndex + 1}
@@ -721,13 +726,13 @@ const handlePhotoCapture = async (photo: string) => {
       screenStream={screenStream}
     />
   </motion.div>
-) : currentStep === 10 ? (
+) : currentStep === 9 ? (
   <motion.div key="step7-loading" className="flex items-center justify-center h-screen" {...stepMotionProps}>
     <p className="text-muted-foreground animate-pulse">Loading questions...</p>
   </motion.div>
 ) : null}
 
-        {currentStep === 11 && (
+        {currentStep === 10 && (
           <motion.div key="step-thank-you" {...stepMotionProps}>
             <StepThankYou
               onStartOver={handleRestart}

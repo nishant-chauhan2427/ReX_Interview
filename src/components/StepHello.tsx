@@ -1,5 +1,5 @@
 ﻿import PiEmblem from "./PiEmblem";
-
+import { CreditCard, MicOff, Wifi, Camera, MonitorOff } from "lucide-react";
 interface StepHelloProps {
   onBegin: () => void;
   candidateName?: string;
@@ -8,12 +8,19 @@ interface StepHelloProps {
   jobLocation?: string;
 }
 
+// const prepInstructions = [
+//   { icon: "\u{1FAAA}", text: "Please keep your Aadhaar card ready for verification." },
+//   { icon: "\u{1F92B}", text: "Ensure you are in a quiet environment." },
+//   { icon: "\u{1F310}", text: "Use a stable internet connection." },
+//   { icon: "\u{1F4F7}", text: "Keep your camera on during the session." },
+//   { icon: "\u{1F6AB}", text: "Do not switch tabs during the interview." },
+// ];
 const prepInstructions = [
-  { icon: "\u{1FAAA}", text: "Please keep your Aadhaar card ready for verification." },
-  { icon: "\u{1F92B}", text: "Ensure you are in a quiet environment." },
-  { icon: "\u{1F310}", text: "Use a stable internet connection." },
-  { icon: "\u{1F4F7}", text: "Keep your camera on during the session." },
-  { icon: "\u{1F6AB}", text: "Do not switch tabs during the interview." },
+  { icon: <CreditCard size={18} />, text: "Please keep your Aadhaar card ready for verification." },
+  { icon: <MicOff size={18} />, text: "Ensure you are in a quiet environment." },
+  { icon: <Wifi size={18} />, text: "Use a stable internet connection." },
+  { icon: <Camera size={18} />, text: "Keep your camera on during the session." },
+  { icon: <MonitorOff size={18} />, text: "Do not switch tabs during the interview." },
 ];
 
 const StepHello = ({
@@ -48,16 +55,16 @@ const StepHello = ({
         ))}
       </div>
 
-      <div className="hello-role">
+      {/* <div className="hello-role">
         {jobTitle} {"\u00B7"} {companyName}
-      </div>
+      </div> */}
 
       <div className="hello-actions">
-        <div className="hello-tags">
+        {/* <div className="hello-tags">
           <span className="tag badge-blue">{"\u{1F4CD}"} {jobLocation}</span>
           <span className="tag badge-blue">{"\u23F1"} ~25 min</span>
           <span className="tag badge-blue">{"\u{1F512}"} Encrypted</span>
-        </div>
+        </div> */}
         <button className="btn-pai btn-pai-primary" onClick={onBegin}>
           Begin Interview {"\u2192"}
         </button>

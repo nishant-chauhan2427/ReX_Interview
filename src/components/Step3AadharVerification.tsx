@@ -619,7 +619,7 @@ export function Step3AadharVerification({
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.9 }}
                     onClick={capturePhoto}
-                    className="flex-1 px-6 py-4 bg-secondary text-secondary-foreground rounded-xl hover:shadow-lg hover:shadow-secondary/20 transition-all flex items-center justify-center gap-2"
+                    className="flex-1 px-6 py-4 bg-primary text-primary-foreground rounded-xl hover:shadow-lg hover:shadow-primary/20 transition-all flex items-center justify-center gap-2"
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
                   >

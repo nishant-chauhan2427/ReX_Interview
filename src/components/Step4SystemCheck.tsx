@@ -127,7 +127,16 @@ export function Step4SystemCheck({ onNext }: Step4SystemCheckProps) {
       }
 
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { cursor: "always" },
+        video: {
+          cursor: "always",
+          displaySurface: "monitor",
+          logicalSurface: false,
+          // Browser hints to keep selection on full-screen surfaces only.
+          // Some browsers may still show extra options; we validate again below.
+          monitorTypeSurfaces: "include" as any,
+          selfBrowserSurface: "exclude" as any,
+          surfaceSwitching: "exclude" as any,
+        } as any,
         audio: false,
       });
 

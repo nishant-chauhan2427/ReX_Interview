@@ -3,7 +3,7 @@ import { CreditCard, MicOff, Wifi, Camera, MonitorOff } from "lucide-react";
 interface StepHelloProps {
   onBegin: () => void;
   candidateName?: string;
-  jobTitle?: string;
+  jobTitle?: string; 
   companyName?: string;
   jobLocation?: string;
 }

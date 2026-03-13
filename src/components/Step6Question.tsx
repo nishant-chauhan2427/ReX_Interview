@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Brain,
@@ -7,18 +7,15 @@ import {
   MicOff,
   Video,
   AlertTriangle,
-  Eye,Volume2,
+  Eye,
   Monitor,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import axios from "axios";
 import { useSpeakQuestion } from "../hooks/useSpeakQuestion";
-
-
-
+import { JarvisQuestionBox } from "../utils/jarvicevoiceorb";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
-
 
 interface Step6QuestionProps {
   questionNumber: number;
@@ -29,7 +26,6 @@ interface Step6QuestionProps {
     transcript: string;
     timeSpent: number;
   }) => void;
-
   systemReady: boolean;
   cameraStream: MediaStream;
   screenStream: MediaStream;
@@ -53,7 +49,6 @@ export function Step6Question({
   screenStream,
 }: Step6QuestionProps) {
   const [isSpeaking, setIsSpeaking] = useState(false);
-
   const [selectedAnswer, setSelectedAnswer] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [timeSpent, setTimeSpent] = useState(0);
@@ -62,83 +57,51 @@ export function Step6Question({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const audioBlobRef = useRef<Blob | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [showTranscript, setShowTranscript] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const HEAD_POSE_INTERVAL =
-    Number(import.meta.env.VITE_HEAD_POSE_INTERVAL_MS) || 5000;
-  const violationCountRef = useRef(0);
-  const lastViolationTsRef = useRef(0);
+  const HEAD_POSE_INTERVAL = Number(import.meta.env.VITE_HEAD_POSE_INTERVAL_MS) || 5000;
   const audioRef = useRef<HTMLAudioElement | null>(null);
-// 🔹 Clean HTML tags from question text
-const cleanQuestionText = question.text.replace(/<[^>]*>/g, "").trim();
+
+  const cleanQuestionText = question.text.replace(/<[^>]*>/g, "").trim();
 
   const captureFrame = (): Promise<Blob | null> => {
     return new Promise((resolve) => {
       if (!videoRef.current) return resolve(null);
-
       const video = videoRef.current;
       const canvas = document.createElement("canvas");
-
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-
       const ctx = canvas.getContext("2d");
       if (!ctx) return resolve(null);
-
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      canvas.toBlob(
-        (blob) => resolve(blob),
-        "image/jpeg",
-        0.7, // ⚖️ balance quality vs bandwidth
-      );
+      canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.7);
     });
   };
 
-  /* ---------------- RESET STATE ON QUESTION CHANGE ---------------- */
-useEffect(() => {
-  // Stop any ongoing recording
-  if (mediaRecorderRef.current && isRecording) {
-    mediaRecorderRef.current.stop();
-    mediaRecorderRef.current = null;
-  }
-
-  // Reset ALL per-question state
-  setSelectedAnswer("");
-  setTranscript("");
-  setShowTranscript(false);
-  setAudioBlob(null);
-  setIsRecording(false);
-  setIsSubmitting(false);
-  setIsTranscribing(false);
-  setTimeSpent(0);
-
-  // Clear audio chunks buffer
-  audioChunksRef.current = [];
-}, [question.id]);
-/* ---------------- STOP TTS AUDIO ON QUESTION CHANGE ---------------- */
-useEffect(() => {
-  if (audioRef.current) {
-    audioRef.current.pause();
-    audioRef.current.src = "";
-    audioRef.current = null;
-  }
-  setIsSpeaking(false);
-}, [question.id]);
-
-
-
-  /* ---------------- TIMER ---------------- */
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeSpent((prev) => prev + 1);
-    }, 1000);
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+    }
+    setSelectedAnswer(""); setTranscript(""); setShowTranscript(false);
+    setAudioBlob(null); setIsRecording(false); setIsSubmitting(false);
+    setIsTranscribing(false); setTimeSpent(0);
+    audioBlobRef.current = null; audioChunksRef.current = [];
+  }, [question.id]);
+
+  useEffect(() => {
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ""; audioRef.current = null; }
+    setIsSpeaking(false);
+  }, [question.id]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setTimeSpent((p) => p + 1), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  /* ---------------- CAMERA PREVIEW ---------------- */
   useEffect(() => {
     if (videoRef.current && cameraStream) {
       videoRef.current.srcObject = cameraStream;
@@ -146,1050 +109,337 @@ useEffect(() => {
     }
   }, [cameraStream]);
 
-  /* ---------------- TAB VIOLATION (OLD LOGIC MERGED) ---------------- */
   useEffect(() => {
-    const handleVisibilityChange = async () => {
+    const onVisibility = async () => {
       if (document.hidden) {
         setShowTabAlert(true);
         setTimeout(() => setShowTabAlert(false), 4000);
-
         try {
-          const formData = new FormData();
-          formData.append(
-            "candidate_id",
-            localStorage.getItem("candidate_id") || "",
-          );
-          
-          formData.append("reason", "User switched tabs");
-          formData.append("timestamp", new Date().toISOString());
-
-          await fetch(`${API_BASE}/frames/log_tab_violation`, {
-            method: "POST",
-            body: formData,
-          });
-        } catch {
-          // silent fail (same as old code behaviour)
-        }
+          const fd = new FormData();
+          fd.append("candidate_id", localStorage.getItem("candidate_id") || "");
+          fd.append("reason", "User switched tabs");
+          fd.append("timestamp", new Date().toISOString());
+          await fetch(`${API_BASE}/frames/log_tab_violation`, { method: "POST", body: fd });
+        } catch {}
       }
     };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () =>
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
-  // const isLastQuestion = questionNumber === totalQuestions;
-  const handleCompleteInterview = async () => {
-    if (isSubmitting) return;
-  
-    setIsSubmitting(true);
-    const toastId = toast.loading("Completing interview...");
-  
-    try {
-      const formData = new FormData();
-      formData.append(
-        "candidate_id",
-        localStorage.getItem("candidate_id") || ""
-      );
-      formData.append(
-        "session_id",
-        localStorage.getItem("session_id") || ""
-      );
-  
-      const res = await fetch(`${API_BASE}/questions/complete_interview`, {
-        method: "POST",
-        body: formData,
-      });
-  
-      const data = await res.json();
-  
-      if (!res.ok) {
-        throw new Error(data?.message || "Failed to complete interview");
-      }
-  
-      toast.success("Interview completed successfully!", { id: toastId });
-  
-      // redirect ya parent ko notify
-      onAnswer({
-        questionId: question.id,
-        transcript: transcript,
-        timeSpent,
-      });
-  
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to complete interview", {
-        id: toastId,
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-/* ---------------- HEAD POSE DETECTION ---------------- */
-useEffect(() => {
-  if (!cameraStream || !videoRef.current) return;
 
-  let intervalId: number;
+  useEffect(() => {
+    if (!cameraStream || !videoRef.current) return;
+    let id: number;
+    const detect = async () => {
+      try {
+        const blob = await captureFrame();
+        if (!blob) return;
+        const fd = new FormData();
+        fd.append("file", blob, "frame.jpg");
+        fd.append("candidate_name", localStorage.getItem("candidate_id") || "");
+        fd.append("session_id", localStorage.getItem("session_id") || "");
+        const { data } = await axios.post(`${API_BASE}/status/detect_head_pose`, fd, { validateStatus: () => true });
+        if (data?.data?.cheating === true) { toast.error(data?.message || "Cheating detected"); return; }
+        if (data?.message && data?.status_code !== 200) toast.error(data.message);
+      } catch { toast.error("Network error during head pose detection"); }
+    };
+    id = window.setInterval(detect, HEAD_POSE_INTERVAL);
+    return () => clearInterval(id);
+  }, [cameraStream]);
 
-  const sendFrameForDetection = async () => {
-    try {
-      const frameBlob = await captureFrame();
-      if (!frameBlob) return;
-
-      const formData = new FormData();
-      formData.append("file", frameBlob, "frame.jpg");
-      formData.append(
-        "candidate_name",
-        localStorage.getItem("candidate_id") || ""
-      );
-      formData.append(
-        "session_id",
-        localStorage.getItem("session_id") || ""
-      );
-
-      const response = await axios.post(
-        `${API_BASE}/status/detect_head_pose`,
-        formData,
-        {
-          validateStatus: () => true, // 🔥 VERY IMPORTANT
-        }
-      );
-
-      const data = response.data;
-
-      console.log("Head pose response:", data);
-
-      // 🔴 Always check cheating flag
-      if (data?.data?.cheating === true) {
-        toast.error(data?.message || "Cheating detected");
-        return;
-      }
-
-      // ⚠️ If backend sends warning
-      if (data?.message && data?.status_code !== 200) {
-        toast.error(data.message);
-      }
-
-    } catch (err) {
-      console.error("Network error:", err);
-      toast.error("Network error during head pose detection");
-    }
-  };
-
-  intervalId = window.setInterval(
-    sendFrameForDetection,
-    HEAD_POSE_INTERVAL
-  );
-
-  return () => clearInterval(intervalId);
-}, [cameraStream]);
-  // useEffect(() => {
-  //   if (!cameraStream || !videoRef.current) return;
-
-  //   let intervalId: number;
-
-  //   const sendFrameForDetection = async () => {
-  //     try {
-  //       const frameBlob = await captureFrame();
-  //       if (!frameBlob) return;
-
-  //       const formData = new FormData();
-  //       formData.append("file", frameBlob, "frame.jpg");
-  //       formData.append(
-  //         "candidate_name",
-  //         localStorage.getItem("candidate_id") || "",
-  //       );
-  //       formData.append("session_id", localStorage.getItem("session_id") || "");
-
-  //       const { data } = await axios.post(
-  //         `${API_BASE}/status/detect_head_pose`,
-  //         formData,
-  //         {
-  //           headers: {
-  //             "Content-Type": "multipart/form-data",
-  //           },
-  //         },
-  //       );
-  //       console.log(data,"data1122");
-        
-  //       // 🚨 Optional: act on cheating signal
-  //       if (data?.cheating === true) {
-  //         toast.error(data?.message || "Head pose violation detected");
-  //       }
-  //     } catch (err) {
-  //       // ❗ Silent fail by design (do NOT interrupt interview)
-  //       console.warn("Head pose detection failed");
-  //     }
-  //   };
-
-  //   intervalId = window.setInterval(sendFrameForDetection, HEAD_POSE_INTERVAL);
-
-  //   return () => clearInterval(intervalId);
-  // }, [cameraStream]);
-
-  /* ---------------- RECORDING BORDER ---------------- */
   useEffect(() => {
     document.body.classList.toggle("recording-active", screenStream?.active);
     return () => document.body.classList.remove("recording-active");
   }, [screenStream]);
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
+  const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
   const toggleRecording = async () => {
     if (isRecording) {
       mediaRecorderRef.current?.stop();
       setIsRecording(false);
     } else {
-      // Reset states when starting new recording
-      setTranscript("");
-      setShowTranscript(false);
-      setAudioBlob(null);
-      setSelectedAnswer("");
-
+      setTranscript(""); setShowTranscript(false); setAudioBlob(null); setSelectedAnswer("");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
-
       audioChunksRef.current = [];
       recorder.ondataavailable = (e) => audioChunksRef.current.push(e.data);
-
       recorder.onstop = async () => {
         const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        setAudioBlob(blob);
-
-        // Call STT API immediately after recording stops
+        audioBlobRef.current = blob; setAudioBlob(blob);
         await transcribeAudio(blob);
       };
-
-      recorder.start();
-      mediaRecorderRef.current = recorder;
-      setIsRecording(true);
+      recorder.start(); mediaRecorderRef.current = recorder; setIsRecording(true);
     }
   };
 
-  /* ---------------- STT API CALL ---------------- */
   const transcribeAudio = async (blob: Blob) => {
     setIsTranscribing(true);
-
     try {
-      const formData = new FormData();
-      formData.append(
-        "candidate_id",
-        localStorage.getItem("candidate_id") || "",
-      );
-      formData.append("question_id", question.id);
-      formData.append("question", question.text);
-      formData.append("expected_answer", question.expected_answer || "");
-
-      const audioFile = new File([blob], `stt_${question.id}.webm`, {
-        type: "audio/webm",
-      });
-      formData.append("audio_file", audioFile);
-
-      const res = await fetch(`${API_BASE}/questions/stt_only`, {
-        method: "POST",
-        body: formData,
-      });
-
-      console.log(res, "stt");
-
+      const fd = new FormData();
+      fd.append("candidate_id", localStorage.getItem("candidate_id") || "");
+      fd.append("question_id", question.id);
+      fd.append("question", question.text);
+      fd.append("expected_answer", question.expected_answer || "");
+      fd.append("audio_file", new File([blob], `stt_${question.id}.webm`, { type: "audio/webm" }));
+      const res = await fetch(`${API_BASE}/questions/stt_only`, { method: "POST", body: fd });
       const data = await res.json();
-      console.log(data, "data for the stt");
-      if (!res.ok) {
-        throw new Error(data?.message || "Transcription failed");
-      }
-
-      // Show transcript to user
-      setTranscript(data?.user_answer || "");
-      setShowTranscript(true);
-
+      if (!res.ok) throw new Error(data?.message || "Transcription failed");
+      setTranscript(data?.user_answer || ""); setShowTranscript(true);
       toast.success("Transcription completed!");
     } catch (err: any) {
-      console.error("STT failed", err);
-      toast.error(err?.message || "Failed to transcribe audio");
-      setShowTranscript(false);
-    } finally {
-      setIsTranscribing(false);
-    }
+      toast.error(err?.message || "Failed to transcribe audio"); setShowTranscript(false);
+    } finally { setIsTranscribing(false); }
   };
 
-  /* ---------------- SUBMIT (OLD submit_answer API) ---------------- */
   const handleSkip = async () => {
     if (isSubmitting) return;
-
     setIsSubmitting(true);
-    const toastId = toast.loading("Skipping question...");
-
+    const tid = toast.loading("Skipping question...");
     try {
-      const formData = new FormData();
-      formData.append(
-        "candidate_id",
-        localStorage.getItem("candidate_id") || "",
-      );
-      formData.append("question_id", question.id);
-      formData.append("question", question.text);
-
-      const { data } = await axios.post(
-        `${API_BASE}/questions/skip_question`,
-        formData,
-        {
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-        },
-      );
-
-      toast.success(data?.message || "Question skipped", {
-        id: toastId,
+      const fd = new FormData();
+      fd.append("candidate_id", localStorage.getItem("candidate_id") || "");
+      fd.append("question_id", question.id); fd.append("question", question.text);
+      const { data } = await axios.post(`${API_BASE}/questions/skip_question`, fd, {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
       });
-
-      // 🚀 Move to next question
-      onAnswer({
-        questionId: question.id,
-        transcript: "",
-        timeSpent,
-      });
+      toast.success(data?.message || "Question skipped", { id: tid });
+      onAnswer({ questionId: question.id, transcript: "", timeSpent });
     } catch (err: any) {
-      console.error("Skip failed", err);
-
-      toast.error(err?.response?.data?.message || "Could not skip question", {
-        id: toastId,
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+      toast.error(err?.response?.data?.message || "Could not skip question", { id: tid });
+    } finally { setIsSubmitting(false); }
   };
+
   const isLastQuestion = questionNumber === totalQuestions;
-  // const isLastQuestion = questionNumber === totalQuestions;
 
-const handleSubmit = async () => {
-  if (isSubmitting) return;
+  const handleFinalSubmit = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    const tid = toast.loading(isLastQuestion ? "Completing interview..." : "Submitting answer...");
+    try {
+      const cid = localStorage.getItem("candidate_id") || "";
+      const sid = localStorage.getItem("session_id") || "";
 
-  setIsSubmitting(true);
-
-  const toastId = toast.loading(
-    isLastQuestion
-      ? "Completing interview..."
-      : "Submitting your answer..."
-  );
-
-  try {
-    const formData = new FormData();
-    formData.append(
-      "candidate_id",
-      localStorage.getItem("candidate_id") || ""
-    );
-    formData.append("question_id", question.id);
-    formData.append("question", question.text);
-    formData.append(
-      "session_id",
-      localStorage.getItem("session_id") || ""
-    );
-
-    // 🔥 Only attach audio if it exists
-    if (audioBlob && showTranscript) {
-      const audioFile = new File(
-        [audioBlob],
-        `answer_${question.id}.webm`,
-        { type: "audio/webm" }
-      );
-      formData.append("audio_file", audioFile);
-    }
-
-    const res = await fetch(
-      `${API_BASE}/questions/submit_answer`,
-      {
-        method: "POST",
-        body: formData,
-      }
-    );
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data?.error || "Submission failed");
-    }
-
-    toast.success(
-      isLastQuestion
-        ? "Interview completed successfully!"
-        : "Answer submitted!",
-      { id: toastId }
-    );
-
-    onAnswer({
-      questionId: question.id,
-      transcript: transcript || "",
-      timeSpent,
-    });
-
-  } catch (err: any) {
-    toast.error(err?.message || "Submission failed", {
-      id: toastId,
-    });
-  } finally {
-    setIsSubmitting(false);
-  }
-};
-const handleFinalSubmit = async () => {
-  if (isSubmitting) return;
-
-  setIsSubmitting(true);
-  const toastId = toast.loading(
-    isLastQuestion ? "Completing interview..." : "Submitting answer..."
-  );
-
-  try {
-    const candidateId = localStorage.getItem("candidate_id") || "";
-    const sessionId = localStorage.getItem("session_id") || "";
-
-    // 🔹 NOT LAST QUESTION → normal submit
-    if (!isLastQuestion) {
-      const formData = new FormData();
-      formData.append("candidate_id", candidateId);
-      formData.append("question_id", question.id);
-      formData.append("question", question.text);
-      formData.append("session_id", sessionId);
-
-      if (audioBlob && showTranscript) {
-        const audioFile = new File(
-          [audioBlob],
-          `answer_${question.id}.webm`,
-          { type: "audio/webm" }
-        );
-        formData.append("audio_file", audioFile);
+      if (!isLastQuestion) {
+        const fd = new FormData();
+        fd.append("candidate_id", cid); fd.append("question_id", question.id);
+        fd.append("question", question.text); fd.append("session_id", sid);
+        if (audioBlobRef.current)
+          fd.append("audio_file", new File([audioBlobRef.current], `answer_${question.id}.webm`, { type: "audio/webm" }));
+        const res = await fetch(`${API_BASE}/questions/submit_answer`, { method: "POST", body: fd });
+        if (!res.ok) throw new Error("Failed to submit answer");
+        toast.success("Answer submitted!", { id: tid });
+        onAnswer({ questionId: question.id, transcript: transcript || "", timeSpent });
+        setIsSubmitting(false); return;
       }
 
-      const res = await fetch(`${API_BASE}/questions/submit_answer`, {
+      const hasAnswer = (question.type === "multiple-choice" && selectedAnswer) ||
+        (question.type === "open-ended" && showTranscript);
+
+      if (hasAnswer) {
+        const fd = new FormData();
+        fd.append("candidate_id", cid); fd.append("question_id", question.id);
+        fd.append("question", question.text); fd.append("session_id", sid);
+        if (audioBlobRef.current)
+          fd.append("audio_file", new File([audioBlobRef.current], `answer_${question.id}.webm`, { type: "audio/webm" }));
+        const r = await fetch(`${API_BASE}/questions/submit_answer`, { method: "POST", body: fd });
+        if (!r.ok) throw new Error("Failed to submit last answer");
+      } else {
+        const fd = new FormData();
+        fd.append("candidate_id", cid); fd.append("question_id", question.id); fd.append("question", question.text);
+        const r = await fetch(`${API_BASE}/questions/skip_question`, { method: "POST", body: fd });
+        if (!r.ok) throw new Error("Failed to skip last question");
+      }
+
+      const params = new URLSearchParams(); params.append("candidate_id", cid);
+      const endRes = await fetch(`${API_BASE}/questions/end-test`, {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/x-www-form-urlencoded", accept: "application/json" },
+        body: params.toString(),
       });
-
-      if (!res.ok) throw new Error("Failed to submit answer");
-
-      toast.success("Answer submitted!", { id: toastId });
+      const endData = await endRes.json();
+      if (!endRes.ok) throw new Error(endData?.message || "Failed to complete interview");
+      toast.success("Interview completed successfully!", { id: tid });
       onAnswer({ questionId: question.id, transcript: transcript || "", timeSpent });
-      setIsSubmitting(false);
-      return;
-    }
-
-    // 🔹 LAST QUESTION LOGIC
-    const hasAnswer =
-      (question.type === "multiple-choice" && selectedAnswer) ||
-      (question.type === "open-ended" && showTranscript);
-
-    if (hasAnswer) {
-      // ✅ Answer diya hai → submit_answer call karo
-      const formData = new FormData();
-      formData.append("candidate_id", candidateId);
-      formData.append("question_id", question.id);
-      formData.append("question", question.text);
-      formData.append("session_id", sessionId);
-
-      if (audioBlob && showTranscript) {
-        const audioFile = new File(
-          [audioBlob],
-          `answer_${question.id}.webm`,
-          { type: "audio/webm" }
-        );
-        formData.append("audio_file", audioFile);
-      }
-
-      const submitRes = await fetch(`${API_BASE}/questions/submit_answer`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!submitRes.ok) throw new Error("Failed to submit last answer");
-
-    } else {
-      // ❌ Answer nahi diya → skip_question call karo
-      const skipFormData = new FormData();
-      skipFormData.append("candidate_id", candidateId);
-      skipFormData.append("question_id", question.id);
-      skipFormData.append("question", question.text);
-
-      const skipRes = await fetch(`${API_BASE}/questions/skip_question`, {
-        method: "POST",
-        body: skipFormData,
-      });
-
-      if (!skipRes.ok) throw new Error("Failed to skip last question");
-    }
-
-    // 🔹 Always call end-test after last question
-    const params = new URLSearchParams();
-    params.append("candidate_id", candidateId);
-
-    const endRes = await fetch(`${API_BASE}/questions/end-test`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        accept: "application/json",
-      },
-      body: params.toString(),
-    });
-
-    const endData = await endRes.json();
-    if (!endRes.ok) throw new Error(endData?.message || "Failed to complete interview");
-
-    toast.success("Interview completed successfully!", { id: toastId });
-    onAnswer({ questionId: question.id, transcript: transcript || "", timeSpent });
-
-  } catch (err: any) {
-    toast.error(err?.message || "Something went wrong", { id: toastId });
-  } finally {
-    setIsSubmitting(false);
-  }
-};
-//   const handleSubmit = async () => {
-    
-//     if (isSubmitting) return;
-
-// // For open-ended question validation
-// if (
-//   question.type === "open-ended" &&
-//   !showTranscript &&
-//   !isLastQuestion
-// ) {
-//   toast.error("Please record your answer first");
-//   return;
-// }
-
-// // For multiple choice validation
-// if (
-//   question.type === "multiple-choice" &&
-//   !selectedAnswer &&
-//   !isLastQuestion
-// ) {
-//   toast.error("Please select an option");
-//   return;
-// }
-
-//     setIsSubmitting(true);
-
-//     const toastId = toast.loading("Submitting your answer...");
-
-//     try {
-//       const formData = new FormData();
-//       formData.append(
-//         "candidate_id",
-//         localStorage.getItem("candidate_id") || "",
-//       );
-//       formData.append("question_id", question.id);
-//       formData.append("question", question.text);
-//       formData.append("expected_answer", question.expected_answer || "");
-//       formData.append("session_id", localStorage.getItem("session_id") || "");
-
-//       const audioFile = new File([audioBlob], `answer_${question.id}.webm`, {
-//         type: "audio/webm",
-//       });
-//       formData.append("audio_file", audioFile);
-
-//       const res = await fetch(`${API_BASE}/questions/submit_answer`, {
-//         method: "POST",
-//         body: formData,
-//       });
-
-//       const data = await res.json();
-
-//       if (!res.ok) {
-//         throw new Error(data?.message || "Answer submission failed");
-//       }
-
-//       toast.success(data?.message || "Answer submitted successfully", {
-//         id: toastId,
-//       });
-
-//       onAnswer({
-//         questionId: question.id,
-//         transcript: transcript,
-//         timeSpent,
-//       });
-//     } catch (err: any) {
-//       console.error("submit_answer failed", err);
-
-//       toast.error(err?.message || "Failed to submit answer", { id: toastId });
-//     } finally {
-//       setIsSubmitting(false);
-//     }
-//   };
+    } catch (err: any) {
+      toast.error(err?.message || "Something went wrong", { id: tid });
+    } finally { setIsSubmitting(false); }
+  };
 
   const handleRetake = () => {
-    setAudioBlob(null);
-    setTranscript("");
-    setShowTranscript(false);
-    setSelectedAnswer("");
+    setAudioBlob(null); setTranscript(""); setShowTranscript(false);
+    setSelectedAnswer(""); audioBlobRef.current = null;
   };
 
-  // useSpeakQuestion(question.text, true);
-  // const speakQuestion = useSpeakQuestion(question.text, true);
   const baseSpeakQuestion = useSpeakQuestion(question.text, true);
 
-  // const speakQuestion = () => {
-  //   setIsSpeaking(true);
-  //   baseSpeakQuestion();
-  
-  //   const interval = setInterval(() => {
-  //     if (!window.speechSynthesis.speaking) {
-  //       setIsSpeaking(false);
-  //       clearInterval(interval);
-  //     }
-  //   }, 100);
-  // };
-  // const speakQuestion = async () => {
-  //   const res = await fetch(
-  //     `${API_BASE}/questions/${question.id}/speak`,
-  //     { method: "POST" }
-  //   );
-  
-  //   const data = await res.json();
-  
-  //   const audio = new Audio(data.audio_url);
-  //   audio.play();
-  // };
-  // const speakQuestion = async () => {
-  //   if (isRecording || isSpeaking) return;
-  
-  //   try {
-  //     setIsSpeaking(true);
-  
-  //     // ✅ Reuse single audio instance
-  //     if (!audioRef.current) {
-  //       audioRef.current = new Audio();
-  //     }
-  
-  //     const audio = audioRef.current;
-  
-  //     // Reset previous state
-  //     audio.pause();
-  //     audio.currentTime = 0;
-  //     audio.src = "";
-  
-  //     // 🔥 CRITICAL: call play() immediately in click context
-  //     // const playPromise = audio.play();
-  
-  //     const res = await fetch(
-  //       `${API_BASE}/questions/${question.id}/speak`,
-  //       { method: "POST" }
-  //     );
-  
-  //     const data = await res.json();
-  //     if (!data?.audio_url) {
-  //       throw new Error("Audio URL missing");
-  //     }
-  
-  //     // Set source AFTER play() is called
-  //     audio.src = data.audio_url;
-  
-  //     audio.onended = () => {
-  //       setIsSpeaking(false);
-  //     };
-  
-  //     audio.onerror = (e) => {
-  //       console.error("Audio playback error", e);
-  //       setIsSpeaking(false);
-  //       toast.error("Audio playback failed");
-  //     };
-  
-  //     await playPromise; // ✅ browser allows it now
-  //   } catch (err) {
-  //     console.error("Speak question failed", err);
-  //     setIsSpeaking(false);
-  //     toast.error("Could not play question audio");
-  //   }
-  // };
-  
-  // const speakQuestion = async () => {
-  //   if (isRecording || isSpeaking) return;
-  
-  //   try {
-  //     setIsSpeaking(true);
-  
-  //     if (!audioRef.current) {
-  //       audioRef.current = new Audio();
-  //     }
-  
-  //     const audio = audioRef.current;
-  
-  //     // 1️⃣ Fetch audio URL FIRST
-  //     const res = await fetch(
-  //       `${API_BASE}/questions/${question.id}/speak`,
-  //       { method: "POST" }
-  //     );
-  
-  //     const data = await res.json();
-  //     if (!data?.audio_url) {
-  //       throw new Error("Audio URL missing");
-  //     }
-  
-  //     // 2️⃣ Set src BEFORE play
-  //     audio.src = data.audio_url;
-  //     audio.load(); // 🔥 important
-  
-  //     // 3️⃣ Play (user gesture context still valid)
-  //     await audio.play();
-  
-  //     audio.onended = () => {
-  //       setIsSpeaking(false);
-  //     };
-  
-  //     audio.onerror = (e) => {
-  //       console.error("Audio playback error", e);
-  //       setIsSpeaking(false);
-  //       toast.error("Audio playback failed");
-  //     };
-  
-  //   } catch (err) {
-  //     console.error("Speak question failed", err);
-  //     setIsSpeaking(false);
-  //     toast.error("Could not play question audio");
-  //   }
-  // };
-  const speakQuestion = async () => {
+  const speakQuestion = useCallback(async () => {
     if (isRecording || isSpeaking) return;
-  
     try {
       setIsSpeaking(true);
-  
-      const res = await fetch(
-        `${API_BASE}/questions/${question.id}/speak`,
-        { method: "POST" }
-      );
-  
+      const res = await fetch(`${API_BASE}/questions/${question.id}/speak`, { method: "POST" });
       const data = await res.json();
-      if (!data?.audio_url) {
-        throw new Error("Audio URL missing");
-      }
-  
-      // ✅ Pehle onended/onerror set karo, PHIR play karo
+      if (!data?.audio_url) throw new Error("Audio URL missing");
       const audio = new Audio();
-  
-      audio.onended = () => {
-        setIsSpeaking(false);
-      };
-  
-      audio.onerror = (e) => {
-        console.error("Audio playback error", e);
-        setIsSpeaking(false);
-        toast.error("Audio playback failed");
-      };
-  
-      audio.src = data.audio_url;
-      audioRef.current = audio;
-  
-      // ✅ load() nahi chahiye jab src set karte ho
+      audio.onended = () => setIsSpeaking(false);
+      audio.onerror = () => { setIsSpeaking(false); toast.error("Audio playback failed"); };
+      audio.src = data.audio_url; audioRef.current = audio;
       await audio.play();
-  
     } catch (err: any) {
-      console.error("Speak question failed", err);
-      setIsSpeaking(false);
-      toast.error(err?.message || "Could not play question audio");
+      setIsSpeaking(false); toast.error(err?.message || "Could not play question audio");
     }
-  };
-const isDisabled =
-  (!isLastQuestion &&
-    question.type === "multiple-choice" &&
-    !selectedAnswer) ||
-  (!isLastQuestion &&
-    question.type === "open-ended" &&
-    !showTranscript) ||
-  isSubmitting ||
-  isTranscribing;
+  }, [question.id, isRecording, isSpeaking]);
+
+  // Auto-speak jab naya question aaye
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      speakQuestion();
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [question.id]);
 
   const progress = (questionNumber / totalQuestions) * 100;
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-background">
-      {/* Tab Switch Alert */}
+      {/* Tab Alert */}
       <AnimatePresence>
         {showTabAlert && (
           <motion.div
-            initial={{ opacity: 0, y: -100 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -100 }}
+            initial={{ opacity: 0, y: -100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -100 }}
             className="absolute top-6 left-1/2 -translate-x-1/2 z-50 glass-card border-2 border-destructive rounded-2xl px-6 py-4 shadow-2xl shadow-destructive/50"
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-destructive/20 flex items-center justify-center">
-                <AlertTriangle
-                  className="w-5 h-5 text-destructive"
-                  strokeWidth={2}
-                />
+                <AlertTriangle className="w-5 h-5 text-destructive" strokeWidth={2} />
               </div>
               <div>
-                <p className="font-medium text-destructive">
-                  Warning: Tab Switch Detected!
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  This activity has been recorded
-                </p>
+                <p className="font-medium text-destructive">Warning: Tab Switch Detected!</p>
+                <p className="text-xs text-muted-foreground">This activity has been recorded</p>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Recording Status Bar */}
+      {/* Top Bar */}
       <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
         className="absolute top-0 left-0 right-0 glass-card border-b border-border z-40"
       >
         <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            {/* Recording Indicator */}
             <div className="flex items-center gap-2">
-              <motion.div
-                className="w-3 h-3 rounded-full bg-destructive"
-                animate={{
-                  opacity: [1, 0.3, 1],
-                  scale: [1, 1.2, 1],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-              />
+              <motion.div className="w-3 h-3 rounded-full bg-destructive"
+                animate={{ opacity: [1, 0.3, 1], scale: [1, 1.2, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }} />
               <span className="text-sm font-medium text-destructive">REC</span>
             </div>
-
-            {/* Status Badges */}
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
-                <Video className="w-3.5 h-3.5 text-primary" strokeWidth={2} />
-                <span className="text-xs text-primary">Camera</span>
-              </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
-                <Monitor className="w-3.5 h-3.5 text-primary" strokeWidth={2} />
-                <span className="text-xs text-primary">Screen</span>
-              </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
-                <Eye className="w-3.5 h-3.5 text-primary" strokeWidth={2} />
-                <span className="text-xs text-primary">Monitoring</span>
-              </div>
+              {[{ icon: Video, label: "Camera" }, { icon: Monitor, label: "Screen" }, { icon: Eye, label: "Monitoring" }].map(({ icon: Icon, label }) => (
+                <div key={label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
+                  <Icon className="w-3.5 h-3.5 text-primary" strokeWidth={2} />
+                  <span className="text-xs text-primary">{label}</span>
+                </div>
+              ))}
             </div>
           </div>
-
-          {/* Timer */}
-          <div className="flex items-center gap-2 text-sm">
-            <Clock
-              className="w-4 h-4 text-muted-foreground"
-              strokeWidth={1.5}
-            />
-            <span className="font-mono">{formatTime(timeSpent)}</span>
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-muted-foreground" strokeWidth={1.5} />
+            <span className="font-mono text-xl font-semibold tracking-wider tabular-nums">
+              {formatTime(timeSpent)}
+            </span>
           </div>
         </div>
       </motion.div>
 
-      {/* Split Screen Layout */}
-      <div className="flex h-screen pt-[60px]">
-        {/* Left Side - Camera View */}
+      {/* Main Layout */}
+      <div className="flex h-screen pt-[60px] pl-14 overflow-hidden">
+
+        {/* ── LEFT: Camera ── */}
         <motion.div
-          initial={{ opacity: 0, x: -50 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="w-[35%] p-6 border-r border-border"
+          initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }}
+          className="w-[40%] flex-shrink-0 p-4 border-r border-border flex flex-col gap-3 h-full justify-center"
         >
-          <div className="h-full ms-8 flex flex-col">
-            {/* Camera Feed */}
-            <div className="glass-card rounded-2xl overflow-hidden flex-1 relative border border-border">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-secondary/5">
-                <motion.div
-                  className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent"
-                  animate={{
-                    opacity: [0.3, 0.6, 0.3],
-                  }}
-                  transition={{
-                    duration: 3,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                  }}
-                />
+          <div className="glass-card rounded-2xl overflow-hidden relative border border-border items-center h-[60%]">
+            <video ref={videoRef} autoPlay playsInline muted
+              className="absolute inset-0 w-full h-full object-cover -scale-x-100" />
+            <div className="scan-line absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50 pointer-events-none" />
+            <div className="absolute top-3 left-3 flex items-center gap-2 px-3 py-1.5 rounded-lg glass-card border border-border">
+              <motion.div className="w-2 h-2 rounded-full bg-[var(--status-ready)]"
+                animate={{ opacity: [1, 0.5, 1] }} transition={{ duration: 1.5, repeat: Infinity }} />
+              <span className="text-xs">Live</span>
+            </div>
+            <motion.div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent pointer-events-none"
+              animate={{ opacity: [0.2, 0.5, 0.2] }} transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }} />
+          </div>
 
-                {/* Camera Icon */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover -scale-x-100"
-                    />
-
-                    <p className="text-sm text-muted-foreground">
-                      Live Camera Feed
-                    </p>
-                  </div>
-                </div>
-
-                {/* Scan line effect */}
-                <div className="scan-line absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50" />
+          {/* Progress */}
+          <div className="glass-card rounded-xl p-4 border border-border">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Brain className="w-4 h-4 text-primary" strokeWidth={1.5} />
               </div>
-
-              {/* Camera Status Badge */}
-              <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-lg glass-card border border-border">
-                <motion.div
-                  className="w-2 h-2 rounded-full bg-[var(--status-ready)]"
-                  animate={{
-                    opacity: [1, 0.5, 1],
-                  }}
-                  transition={{
-                    duration: 1.5,
-                    repeat: Infinity,
-                  }}
-                />
-                <span className="text-xs">Live</span>
+              <div className="flex-1">
+                <p className="text-xs text-muted-foreground">Progress</p>
+                <p className="text-sm font-medium">Question {questionNumber} of {totalQuestions}</p>
               </div>
             </div>
+            <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+              <motion.div className="h-full bg-gradient-to-r from-primary to-secondary"
+                initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={{ duration: 0.5 }} />
+            </div>
+          </div>
 
-            {/* Info Panel */}
-            <div className="mt-4 space-y-3">
-              <div className="glass-card rounded-xl p-4 border border-border">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <Brain className="w-4 h-4 text-primary" strokeWidth={1.5} />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs text-muted-foreground">Progress</p>
-                    <p className="text-sm font-medium">
-                      Question {questionNumber} of {totalQuestions}
-                    </p>
-                  </div>
-                </div>
-                <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                  <motion.div
-                    className="h-full bg-gradient-to-r from-primary to-secondary"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${progress}%` }}
-                    transition={{ duration: 0.5 }}
-                  />
-                </div>
-              </div>
-
-              <div className="glass-card rounded-xl p-3 border border-border">
-                <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                  <AlertTriangle
-                    className="w-3.5 h-3.5 mt-0.5 flex-shrink-0"
-                    strokeWidth={1.5}
-                  />
-                  <p>
-                    Please stay in frame and avoid switching tabs during the
-                    interview
-                  </p>
-                </div>
-              </div>
+          {/* Warning */}
+          <div className="glass-card rounded-xl p-3 border border-border">
+            <div className="flex items-start gap-2 text-xs text-muted-foreground">
+              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" strokeWidth={1.5} />
+              <p>Please stay in frame and avoid switching tabs during the interview</p>
             </div>
           </div>
         </motion.div>
 
-        {/* Right Side - Question Panel */}
+        {/* ── RIGHT: PAI Box + Answer ── */}
         <motion.div
-          initial={{ opacity: 0, x: 50 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="flex-1 w-[60%] p-6 overflow-y-auto"
+          initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }}
+          className="w-[60%] flex-shrink-0 p-4 overflow-y-auto"
         >
-          <div className="max-w-2xl mx-auto h-full flex flex-col justify-center">
-            {/* Question Card */}
-            <div className="glass-card rounded-3xl p-10 border border-border">
-              {/* Question Header */}
-              {/* <div className="flex items-start gap-4 mb-8">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 pulse-glow">
-                  <Brain className="w-6 h-6 text-primary" strokeWidth={1.5} />
-                </div>
-                <div className="flex-1">
-                  <h2 className="text-2xl leading-relaxed">{question.text}</h2>
-                </div>
-              </div> */}
-              {/* Question Header */}
-<div className="flex items-start gap-4 mb-8">
-  {/* Brain Icon */}
-  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 pulse-glow">
-    <Brain className="w-6 h-6 text-primary" strokeWidth={1.5} />
-  </div>
+          <div className="max-w-xl mx-auto h-full flex flex-col gap-4 justify-center">
 
-  {/* Question Text + Speaker */}
-  <div className="flex-1 flex items-start justify-between gap-4">
-  
-    <h2 className="text-2xl leading-relaxed pr-4">
-  {cleanQuestionText}
-</h2>
+            {/* ✅ PAI Jarvis Box — questionKey se flip animation trigger hoga */}
+            <JarvisQuestionBox
+              questionText={cleanQuestionText}
+              isSpeaking={isSpeaking}
+              onSpeak={speakQuestion}
+              disabled={isRecording}
+              questionKey={question.id}
+            />
 
-
-    {/* 🔊 Speaker Button */}
-    {/* <button
-      onClick={speakQuestion}
-      disabled={isRecording}
-      title="Repeat question"
-      className={`
-        p-2 rounded-full transition-all
-        ${
-          isRecording
-            ? "opacity-40 cursor-not-allowed"
-            : "hover:bg-primary/10 text-primary"
-        }
-      `}
-    >
-      <Volume2 className="w-5 h-5" />
-    </button> */}
-    <motion.button
-  onClick={speakQuestion}
-  disabled={isRecording || isSpeaking}
-  title="Repeat question"
-  className={`
-    relative p-2 rounded-full transition-all
-    ${
-      isRecording || isSpeaking
-        ? "opacity-40 cursor-not-allowed"
-        : "hover:bg-primary/10 text-primary"
-    }
-  `}
->
-  <Volume2 className="w-5 h-5" />
-</motion.button>
-
-
-  </div>
-</div>
-
-              {/* Answer Options */}
+            {/* Answer Card */}
+            <motion.div
+              key={question.id + "-answer"}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              className="glass-card rounded-2xl p-6 border border-border"
+            >
+              {/* Multiple Choice */}
               {question.type === "multiple-choice" && question.options && (
-                <div className="space-y-3 mb-8">
+                <div className="space-y-3 mb-6">
                   {question.options.map((option, index) => {
                     const isSelected = selectedAnswer === option;
                     const letter = String.fromCharCode(65 + index);
-
                     return (
-                      <motion.button
-                        key={index}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.05 }}
+                      <motion.button key={index}
+                        initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.35 + index * 0.05 }}
                         onClick={() => setSelectedAnswer(option)}
-                        className={`
-                          w-full p-5 rounded-xl border transition-all text-left
-                          ${
-                            isSelected
-                              ? "border-primary bg-primary/5 glow-border"
-                              : "border-border bg-accent/20 hover:border-primary/30"
-                          }
-                        `}
-                        whileHover={{ x: 4 }}
-                        whileTap={{ scale: 0.98 }}
+                        className={`w-full p-4 rounded-xl border transition-all text-left ${isSelected ? "border-primary bg-primary/5 glow-border" : "border-border bg-accent/20 hover:border-primary/30"}`}
+                        whileHover={{ x: 4 }} whileTap={{ scale: 0.98 }}
                       >
                         <div className="flex items-center gap-4">
-                          <div
-                            className={`
-                            w-10 h-10 rounded-lg flex items-center justify-center font-medium transition-all
-                            ${
-                              isSelected
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-muted/30 text-muted-foreground"
-                            }
-                          `}
-                          >
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-medium transition-all ${isSelected ? "bg-primary text-primary-foreground" : "bg-muted/30 text-muted-foreground"}`}>
                             {letter}
                           </div>
                           <span className="flex-1">{option}</span>
@@ -1200,222 +450,95 @@ const isDisabled =
                 </div>
               )}
 
-              {/* Open-ended Response */}
+              {/* Open-ended */}
               {question.type === "open-ended" && (
-                <div className="p-6 rounded-xl border border-border bg-accent/20 mb-8">
-                  <div className="flex items-center justify-between mb-4">
-                    <p className="text-sm text-muted-foreground">
-                      Your Response
-                    </p>
+                <div className="mb-6">
+                  <div className="flex items-center justify-center min-h-[24px] mb-3">
                     {isRecording && (
-                      <motion.div
-                        className="flex items-center gap-2 text-[var(--status-processing)]"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                      >
-                        <motion.div
-                          className="w-2 h-2 rounded-full bg-[var(--status-processing)]"
-                          animate={{ scale: [1, 1.2, 1] }}
-                          transition={{ duration: 1, repeat: Infinity }}
-                        />
-                        <span className="text-xs font-medium">
-                          Recording...
-                        </span>
+                      <motion.div className="flex items-center gap-2 text-[var(--status-processing)]"
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                        <motion.div className="w-2 h-2 rounded-full bg-[var(--status-processing)]"
+                          animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 1, repeat: Infinity }} />
+                        <span className="text-xs font-medium">Recording...</span>
                       </motion.div>
                     )}
                     {isTranscribing && (
-                      <motion.div
-                        className="flex items-center gap-2 text-primary"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                      >
-                        <motion.div
-                          className="w-2 h-2 rounded-full bg-primary"
-                          animate={{ scale: [1, 1.2, 1] }}
-                          transition={{ duration: 1, repeat: Infinity }}
-                        />
-                        <span className="text-xs font-medium">
-                          Transcribing...
-                        </span>
+                      <motion.div className="flex items-center gap-2 text-primary"
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                        <motion.div className="w-2 h-2 rounded-full bg-primary"
+                          animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 1, repeat: Infinity }} />
+                        <span className="text-xs font-medium">Transcribing...</span>
                       </motion.div>
                     )}
                   </div>
 
-                  <div className="min-h-[120px] flex items-center justify-center mb-6">
-                    {!isRecording && !showTranscript && !isTranscribing ? (
-                      <p className="text-sm text-muted-foreground/60 text-center">
-                        Click the microphone button to start recording your
-                        answer
-                      </p>
-                    ) : isRecording ? (
-                      <div className="w-full">
-                        <motion.div className="flex items-center gap-2 justify-center">
-                          {[...Array(5)].map((_, i) => (
-                            <motion.div
-                              key={i}
-                              className="w-1 bg-primary rounded-full"
-                              animate={{ height: [20, 40, 20] }}
-                              transition={{
-                                duration: 0.8,
-                                repeat: Infinity,
-                                delay: i * 0.1,
-                              }}
-                            />
-                          ))}
-                        </motion.div>
-                      </div>
-                    ) : isTranscribing ? (
-                      <p className="text-sm text-muted-foreground text-center">
-                        Processing your audio...
-                      </p>
-                    ) : showTranscript ? (
-                      <div className="w-full p-4 bg-muted/30 rounded-lg border border-border">
-                        <p className="text-xs text-muted-foreground mb-2">
-                          Transcript:
-                        </p>
-                        <p className="text-sm leading-relaxed">
-                          {transcript || "No speech detected"}
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
+                  <AnimatePresence>
+                    {isRecording && (
+                      <motion.div className="flex items-center gap-[5px] justify-center mb-4"
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                        {[...Array(9)].map((_, i) => (
+                          <motion.div key={i} className="w-1 bg-primary rounded-full"
+                            animate={{ height: [10, 30, 10] }}
+                            transition={{ duration: 0.65, repeat: Infinity, delay: i * 0.07 }} />
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
-                  <div className="flex justify-center gap-3">
-                    {!showTranscript ? (
-                      <motion.button
-                        onClick={toggleRecording}
-                        disabled={isSubmitting || isTranscribing}
-                        className={`
-                          w-14 h-14 rounded-full flex items-center justify-center transition-all
-                          ${
-                            isRecording
-                              ? "bg-destructive text-destructive-foreground"
-                              : "bg-primary text-primary-foreground"
-                          }
-                          ${isSubmitting || isTranscribing ? "opacity-50 cursor-not-allowed" : ""}
-                        `}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
+                  <AnimatePresence>
+                    {showTranscript && transcript && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                        className="mb-4 p-4 bg-muted/30 rounded-xl border border-border"
                       >
-                        {isRecording ? (
-                          <Mic className="w-6 h-6" strokeWidth={2} />
-                        ) : (
-                          <MicOff className="w-6 h-6" strokeWidth={2} />
-                        )}
+                        <p className="text-xs text-muted-foreground mb-1">Transcript:</p>
+                        <p className="text-sm leading-relaxed">{transcript}</p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <div className="flex justify-center">
+                    {!(showTranscript && transcript.trim()) ? (
+                      <motion.button onClick={toggleRecording}
+                        disabled={isSubmitting || isTranscribing}
+                        className={`w-14 h-14 rounded-full flex items-center justify-center transition-all
+                          ${isRecording ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"}
+                          ${isSubmitting || isTranscribing ? "opacity-50 cursor-not-allowed" : ""}`}
+                        whileHover={{ scale: 1.07 }} whileTap={{ scale: 0.93 }}>
+                        {isRecording
+                          ? <Mic className="w-6 h-6" strokeWidth={2} />
+                          : <MicOff className="w-6 h-6" strokeWidth={2} />}
                       </motion.button>
                     ) : (
-                      <motion.button
-                        onClick={handleRetake}
-                        disabled={isSubmitting}
-                        className="px-6 py-2 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-all"
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                      >
+                      <motion.button onClick={handleRetake} disabled={isSubmitting}
+                        className="px-6 py-2.5 rounded-xl bg-muted/60 border border-border text-muted-foreground hover:bg-muted/80 transition-all text-sm"
+                        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                         Retake Recording
                       </motion.button>
                     )}
                   </div>
                 </div>
               )}
-    <motion.button
-  onClick={handleFinalSubmit}
-  disabled={isSubmitting || isTranscribing}
-  className={`
-    w-full px-6 py-4 rounded-xl transition-all font-medium
-    ${
-      isSubmitting || isTranscribing
-        ? "bg-muted text-muted-foreground cursor-not-allowed opacity-50"
-        : "bg-primary text-primary-foreground hover:shadow-lg"
-    }
-  `}
->
-  {isSubmitting
-    ? "Submitting..."
-    : isLastQuestion
-      ? "Complete Interview"
-      : "Submit & Continue"}
-</motion.button>        
-{/* <motion.button
-  onClick={handleSubmit}
-  // onClick={
-  //   questionNumber === totalQuestions
-  //     ? handleCompleteInterview
-  //     : handleSubmit
-  // }
-  disabled={isDisabled}
-  className={`
-    w-full px-6 py-4 rounded-xl transition-all font-medium
-    ${
-      isDisabled
-        ? "bg-muted text-muted-foreground cursor-not-allowed opacity-50"
-        : "bg-primary text-primary-foreground hover:shadow-lg"
-    }
-  `}
->
-  {isSubmitting
-    ? "Submitting..."
-    : questionNumber === totalQuestions
-      ? "Complete Interview"
-      : "Submit & Continue"}
-</motion.button> */}
-              {/* Submit Button */}
-              {/* <motion.button
-                onClick={handleSubmit}
-                // disabled={
-                //   (!selectedAnswer && !showTranscript) ||
-                //   isSubmitting ||
-                //   isTranscribing
-                // }
-                disabled={
-                  (questionNumber !== totalQuestions &&
-                    !selectedAnswer &&
-                    !showTranscript) ||
-                  isSubmitting ||
-                  isTranscribing
-                }
-                className={`
-                  w-full px-6 py-4 rounded-xl transition-all font-medium
-                  ${
-                    (!selectedAnswer && !showTranscript) ||
-                    isSubmitting ||
-                    isTranscribing
-                      ? "bg-muted text-muted-foreground cursor-not-allowed opacity-50"
-                      : "bg-primary text-primary-foreground hover:shadow-lg"
-                  }
-                `}
-              >
-                {isSubmitting
-                  ? "Submitting..."
-                  : questionNumber === totalQuestions
-                    ? "Complete Interview"
-                    : "Submit & Continue"}
-              </motion.button>w */}
 
-              {/* Skip Question Button */}
-              {/* <motion.button
-                onClick={handleSkip}
+              {/* Submit */}
+              <motion.button onClick={handleFinalSubmit}
                 disabled={isSubmitting || isTranscribing}
-                className="
-    w-full mt-3 px-6 py-3 rounded-xl border
-    border-border text-muted-foreground
-    hover:bg-muted/40 transition-all
-  "
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                Skip Question
-              </motion.button> */}
-              {questionNumber < totalQuestions && (
-  <motion.button
-    onClick={handleSkip}
-    disabled={isSubmitting || isTranscribing}
-    className="w-full mt-3 px-6 py-3 rounded-xl border border-border text-muted-foreground hover:bg-muted/40 transition-all"
-  >
-    Skip Question
-  </motion.button>
-)}
+                className={`w-full px-6 py-4 rounded-xl transition-all font-medium
+                  ${isSubmitting || isTranscribing ? "bg-muted text-muted-foreground cursor-not-allowed opacity-50" : "bg-primary text-primary-foreground hover:shadow-lg"}`}
+                whileHover={!isSubmitting && !isTranscribing ? { scale: 1.01 } : {}}
+                whileTap={!isSubmitting && !isTranscribing ? { scale: 0.99 } : {}}>
+                {isSubmitting ? "Submitting..." : isLastQuestion ? "Complete Interview" : "Submit & Continue"}
+              </motion.button>
 
-            </div>
+              {/* Skip */}
+              {questionNumber < totalQuestions && (
+                <motion.button onClick={handleSkip}
+                  disabled={isSubmitting || isTranscribing}
+                  className="w-full mt-3 px-6 py-3 rounded-xl border border-border text-muted-foreground hover:bg-muted/40 transition-all text-sm">
+                  Skip Question
+                </motion.button>
+              )}
+            </motion.div>
           </div>
         </motion.div>
       </div>

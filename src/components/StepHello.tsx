@@ -1,20 +1,14 @@
 ﻿import PiEmblem from "./PiEmblem";
 import { CreditCard, MicOff, Wifi, Camera, MonitorOff } from "lucide-react";
+
 interface StepHelloProps {
   onBegin: () => void;
   candidateName?: string;
-  jobTitle?: string; 
+  jobTitle?: string;
   companyName?: string;
   jobLocation?: string;
 }
 
-// const prepInstructions = [
-//   { icon: "\u{1FAAA}", text: "Please keep your Aadhaar card ready for verification." },
-//   { icon: "\u{1F92B}", text: "Ensure you are in a quiet environment." },
-//   { icon: "\u{1F310}", text: "Use a stable internet connection." },
-//   { icon: "\u{1F4F7}", text: "Keep your camera on during the session." },
-//   { icon: "\u{1F6AB}", text: "Do not switch tabs during the interview." },
-// ];
 const prepInstructions = [
   { icon: <CreditCard size={18} />, text: "Please keep your Aadhaar card ready for verification." },
   { icon: <MicOff size={18} />, text: "Ensure you are in a quiet environment." },
@@ -30,45 +24,51 @@ const StepHello = ({
   companyName = "Company",
   jobLocation = "Remote",
 }: StepHelloProps) => (
-  <div className="pai-card">
-    <div className="hello-wrap">
-      <PiEmblem size={88} id="rg-hello" />
-      <div className="hello-greeting">
-        Hello, <span>{candidateName}</span> {"\u{1F44B}"}
+  <div className="min-h-screen flex items-center justify-center p-6">
+    <div className="w-full max-w-[42rem] rounded-3xl border border-white/10 bg-[rgba(20,22,30,0.85)] p-8 md:p-10 shadow-2xl backdrop-blur-sm">
+      
+      {/* Emblem */}
+      <div className="flex justify-center mb-6">
+        <PiEmblem size={88} id="rg-hello" />
       </div>
-      <p className="hello-sub">
-        Welcome to your interview session with <strong>PAI</strong>, your intelligent hiring companion by REX.
+
+      {/* Greeting */}
+      <h2 className="mb-2 text-3xl font-bold text-center">
+        Hello, <span className="text-primary">{candidateName}</span> 👋
+      </h2>
+
+      {/* Subtitle */}
+      <p className="mb-5 text-muted-foreground text-center">
+        Welcome to your interview session with <strong className="text-foreground">PAI</strong>, your intelligent hiring companion by REX.
       </p>
-      <div className="pai-badge">
-        <span className="pai-pi">{"\u03C0"}</span>
-        <span>
-          Interviewed by <strong>PAI</strong> {"\u00B7"} AI-powered {"\u00B7"} Secure
+
+      {/* Badge */}
+      <div className="flex justify-center mb-6">
+        <span className="inline-flex items-center gap-2 rounded-full border border-primary/35 bg-primary/10 px-4 py-1.5 text-xs text-muted-foreground">
+          <span className="text-primary font-bold">π</span>
+          Interviewed by <strong className="text-foreground">PAI</strong> · AI-powered · Secure
         </span>
       </div>
 
-      <div className="prep-instructions">
+      {/* Prep Instructions Card */}
+      <div className="mb-6 rounded-2xl border border-white/10 bg-white/[0.03] p-4 flex flex-col gap-3">
         {prepInstructions.map((item, i) => (
-          <div className="prep-item" key={i}>
-            <span className="prep-icon">{item.icon}</span>
-            <span className="prep-text">{item.text}</span>
+          <div key={i} className="flex items-center gap-3">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-primary">
+              {item.icon}
+            </span>
+            <span className="text-sm text-muted-foreground">{item.text}</span>
           </div>
         ))}
       </div>
 
-      {/* <div className="hello-role">
-        {jobTitle} {"\u00B7"} {companyName}
-      </div> */}
-
-      <div className="hello-actions">
-        {/* <div className="hello-tags">
-          <span className="tag badge-blue">{"\u{1F4CD}"} {jobLocation}</span>
-          <span className="tag badge-blue">{"\u23F1"} ~25 min</span>
-          <span className="tag badge-blue">{"\u{1F512}"} Encrypted</span>
-        </div> */}
-        <button className="btn-pai btn-pai-primary" onClick={onBegin}>
-          Begin Interview {"\u2192"}
-        </button>
-      </div>
+      {/* Action Button */}
+      <button
+        className="w-full rounded-xl bg-primary px-4 py-3 text-primary-foreground transition-all hover:shadow-lg hover:shadow-primary/20"
+        onClick={onBegin}
+      >
+        Begin Interview →
+      </button>
     </div>
   </div>
 );

@@ -1,4 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from "react";
+import { Camera, Mic, Wifi, Volume2, Monitor, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 
 type CheckStatus = "checking" | "ok" | "fail";
 type CheckKey = "camera" | "microphone" | "internet" | "speakers" | "browser";
@@ -10,7 +11,7 @@ interface StepSystemCheckProps {
 
 interface CheckItem {
   key: CheckKey;
-  icon: string;
+  icon: React.ReactNode;
   name: string;
   value: string;
   status: CheckStatus;
@@ -21,7 +22,7 @@ interface CheckItem {
 const createInitialChecks = (): CheckItem[] => [
   {
     key: "camera",
-    icon: "📷",
+    icon: <Camera size={16} />,
     name: "Camera",
     value: "Checking camera access...",
     status: "checking",
@@ -30,7 +31,7 @@ const createInitialChecks = (): CheckItem[] => [
   },
   {
     key: "microphone",
-    icon: "🎙",
+    icon: <Mic size={16} />,
     name: "Microphone",
     value: "Checking microphone access...",
     status: "checking",
@@ -39,7 +40,7 @@ const createInitialChecks = (): CheckItem[] => [
   },
   {
     key: "internet",
-    icon: "🌐",
+    icon: <Wifi size={16} />,
     name: "Internet Speed",
     value: "Testing network speed...",
     status: "checking",
@@ -48,7 +49,7 @@ const createInitialChecks = (): CheckItem[] => [
   },
   {
     key: "speakers",
-    icon: "🔊",
+    icon: <Volume2 size={16} />,
     name: "Speakers / Audio",
     value: "Checking audio output devices...",
     status: "checking",
@@ -57,11 +58,11 @@ const createInitialChecks = (): CheckItem[] => [
   },
   {
     key: "browser",
-    icon: "💻",
+    icon: <Monitor size={16} />,
     name: "Browser",
     value: "Checking browser compatibility...",
     status: "checking",
-    okLabel: "Good",
+    okLabel: "Compatible",
     failLabel: "Limited",
   },
 ];
@@ -80,7 +81,6 @@ export function StepSystemCheck({ onContinue, active }: StepSystemCheckProps) {
     }
 
     let cancelled = false;
-
     const runChecks = async () => {
       setChecks(createInitialChecks());
 
@@ -89,7 +89,9 @@ export function StepSystemCheck({ onContinue, active }: StepSystemCheckProps) {
         const camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         const track = camStream.getVideoTracks()[0];
         const settings = track.getSettings();
-        const res = settings.width && settings.height ? `${settings.width}x${settings.height} - Active` : "Camera detected - Active";
+        const res = settings.width && settings.height
+          ? `${settings.width}x${settings.height} — Active`
+          : "Camera detected — Active";
         camStream.getTracks().forEach((t) => t.stop());
         if (!cancelled) updateCheck("camera", { value: res, status: "ok" });
       } catch {
@@ -100,7 +102,7 @@ export function StepSystemCheck({ onContinue, active }: StepSystemCheckProps) {
       try {
         const micStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
         const track = micStream.getAudioTracks()[0];
-        const label = track?.label ? `${track.label} - Active` : "Microphone detected - Active";
+        const label = track?.label ? `${track.label} — Active` : "Microphone detected — Active";
         micStream.getTracks().forEach((t) => t.stop());
         if (!cancelled) updateCheck("microphone", { value: label, status: "ok" });
       } catch {
@@ -123,23 +125,21 @@ export function StepSystemCheck({ onContinue, active }: StepSystemCheckProps) {
           speedMbps = (blob.size * 8) / (seconds * 1_000_000);
         }
 
-        const rtt = typeof connection?.rtt === "number" ? ` - ${connection.rtt} ms RTT` : "";
+        const rtt = typeof connection?.rtt === "number" ? ` — ${connection.rtt} ms RTT` : "";
         const speedText = `${speedMbps.toFixed(1)} Mbps download${rtt}`;
         const good = speedMbps >= 2;
-
         if (!cancelled) updateCheck("internet", { value: speedText, status: good ? "ok" : "fail" });
       } catch {
         if (!cancelled) updateCheck("internet", { value: "Network test failed", status: "fail" });
       }
 
-      // Speakers / audio output
+      // Speakers
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
         const outputs = devices.filter((d) => d.kind === "audiooutput");
-
         if (outputs.length > 0) {
           const outName = outputs[0].label || "System default";
-          if (!cancelled) updateCheck("speakers", { value: `${outName} - Available`, status: "ok" });
+          if (!cancelled) updateCheck("speakers", { value: `${outName} — Available`, status: "ok" });
         } else {
           if (!cancelled) updateCheck("speakers", { value: "No audio output device detected", status: "fail" });
         }
@@ -155,32 +155,21 @@ export function StepSystemCheck({ onContinue, active }: StepSystemCheckProps) {
         const firefoxMatch = ua.match(/Firefox\/(\d+)/);
         const safariMatch = ua.match(/Version\/(\d+).+Safari/);
 
-        let browserName = "Unknown";
-        let browserVersion = "";
+        let browserName = "Unknown", browserVersion = "";
+        if (edgeMatch)         { browserName = "Edge";    browserVersion = edgeMatch[1]; }
+        else if (chromeMatch)  { browserName = "Chrome";  browserVersion = chromeMatch[1]; }
+        else if (firefoxMatch) { browserName = "Firefox"; browserVersion = firefoxMatch[1]; }
+        else if (safariMatch)  { browserName = "Safari";  browserVersion = safariMatch[1]; }
 
-        if (edgeMatch) {
-          browserName = "Edge";
-          browserVersion = edgeMatch[1];
-        } else if (chromeMatch) {
-          browserName = "Chrome";
-          browserVersion = chromeMatch[1];
-        } else if (firefoxMatch) {
-          browserName = "Firefox";
-          browserVersion = firefoxMatch[1];
-        } else if (safariMatch) {
-          browserName = "Safari";
-          browserVersion = safariMatch[1];
-        }
-
-        const supportsInterviewFeatures =
+        const supported =
           !!navigator.mediaDevices?.getUserMedia &&
           !!navigator.mediaDevices?.getDisplayMedia &&
           typeof window.MediaRecorder !== "undefined";
 
         if (!cancelled) {
           updateCheck("browser", {
-            value: `${browserName} ${browserVersion || ""} - ${supportsInterviewFeatures ? "Compatible" : "Limited support"}`.trim(),
-            status: supportsInterviewFeatures ? "ok" : "fail",
+            value: `${browserName} ${browserVersion} — ${supported ? "Compatible" : "Limited support"}`.trim(),
+            status: supported ? "ok" : "fail",
           });
         }
       } catch {
@@ -189,49 +178,95 @@ export function StepSystemCheck({ onContinue, active }: StepSystemCheckProps) {
     };
 
     runChecks();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [active]);
 
   const canContinue = useMemo(() => checks.every((c) => c.status === "ok"), [checks]);
 
+  const allDone = checks.every((c) => c.status !== "checking");
+
   return (
-    <div className="pai-card">
-      <div className="face-step-card">
-        <div className="progress-wrap">
-          <div className="progress-label">
-            <span>Step 7 of 10</span>
+    <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="w-full max-w-[38rem] rounded-3xl border border-white/10 bg-[rgba(20,22,30,0.85)] p-8 md:p-10 shadow-2xl backdrop-blur-sm">
+
+        {/* Progress */}
+        {/* <div className="mb-6">
+          <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+            <span>Step 6 of 11</span>
             <span>System Check</span>
           </div>
-          <div className="progress-bar">
-            <div className="progress-fill" style={{ width: "70%" }} />
+          <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+            <div className="h-full w-[55%] rounded-full bg-primary" />
+          </div>
+        </div> */}
+
+        {/* Icon + Title — centered */}
+        <div className="mb-3 flex justify-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-primary/30 bg-primary/10">
+            <Monitor className="h-6 w-6 text-primary" strokeWidth={1.5} />
           </div>
         </div>
+        <h2 className="mb-2 text-center text-3xl font-bold">System Check</h2>
+        <p className="mb-6 text-center text-sm text-muted-foreground">
+          Verifying your setup before the interview begins.
+        </p>
 
-        <div className="card-icon">🖥</div>
-        <div className="card-title">System Check</div>
-        <div className="card-sub">Verifying your setup before the interview begins.</div>
-
-        <div className="sys-checks">
+        {/* Checks List */}
+        <div className="mb-6 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
           {checks.map((item) => (
-            <div className="sys-item" key={item.key}>
-              <div className="sys-icon">{item.icon}</div>
-              <div className="sys-info">
-                <div className="sys-name">{item.name}</div>
-                <div className="sys-val">{item.value}</div>
+            <div
+              key={item.key}
+              className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3"
+            >
+              {/* Icon */}
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-primary">
+                {item.icon}
+              </span>
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-foreground">{item.name}</div>
+                <div className="truncate text-xs text-muted-foreground">{item.value}</div>
               </div>
-              <div className={`sys-state ${item.status === "ok" ? "ok" : item.status === "fail" ? "fail" : "checking"}`}>
-                {item.status === "ok" ? `✓ ${item.okLabel}` : item.status === "fail" ? `✕ ${item.failLabel}` : "Checking..."}
+
+              {/* Status */}
+              <div className="shrink-0">
+                {item.status === "checking" && (
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Checking
+                  </span>
+                )}
+                {item.status === "ok" && (
+                  <span className="flex items-center gap-1.5 text-xs text-green-400">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    {item.okLabel}
+                  </span>
+                )}
+                {item.status === "fail" && (
+                  <span className="flex items-center gap-1.5 text-xs text-red-400">
+                    <XCircle className="h-3.5 w-3.5" />
+                    {item.failLabel}
+                  </span>
+                )}
               </div>
             </div>
           ))}
         </div>
 
-        <button className="btn-pai btn-pai-primary" onClick={onContinue} disabled={!canContinue}>
-          All Good - Continue →
+        {/* Button */}
+        <button
+          onClick={onContinue}
+          disabled={!canContinue}
+          className={`w-full rounded-xl px-4 py-3 text-primary-foreground transition-all ${
+            canContinue
+              ? "bg-primary hover:shadow-lg hover:shadow-primary/20"
+              : "cursor-not-allowed bg-primary/50"
+          }`}
+        >
+          {!allDone ? "Running checks..." : canContinue ? "All Good — Continue →" : "Fix issues to continue"}
         </button>
+
       </div>
     </div>
   );

@@ -11,7 +11,8 @@ export function StepJDConsent({ onContinue, onBack, jdData }: StepJDConsentProps
   const [check1, setCheck1] = useState(true);
   const [check2, setCheck2] = useState(true);
 
-  const mandatorySkills: string[] = jdData?.skills?.mandatory || [];
+  // const mandatorySkills: string[] = jdData?.skills?.mandatory || [];
+  const mandatorySkills: string[] = Array.isArray(jdData?.skills) ? jdData.skills : [];
   const summaryText =
     jdData?.raw_text ||
     "Review the role details and give your consent to proceed.";
@@ -19,7 +20,7 @@ export function StepJDConsent({ onContinue, onBack, jdData }: StepJDConsentProps
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-[42rem] rounded-3xl border border-white/10 bg-[rgba(20,22,30,0.85)] p-8 md:p-10 shadow-2xl backdrop-blur-sm">
-        <div className="mb-6">
+        {/* <div className="mb-6">
           <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
             <span>Step 2 of 11</span>
             <span>Job Overview & Consent</span>
@@ -27,7 +28,7 @@ export function StepJDConsent({ onContinue, onBack, jdData }: StepJDConsentProps
           <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
             <div className="h-full w-[10%] rounded-full bg-primary" />
           </div>
-        </div>
+        </div> */}
 
         {/* ✅ ClipboardCheck instead of 📋 */}
         {/* <div className="mb-2 text-3xl">
@@ -40,24 +41,24 @@ export function StepJDConsent({ onContinue, onBack, jdData }: StepJDConsentProps
 
         <div className="mb-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
           <h3 className="mb-3 text-xl font-semibold">
-            {jdData?.title || jdData?.metadata?.designation || "Role"}
+            {jdData?.title || jdData?.designation || "Role"}
           </h3>
           <div className="mb-3 flex flex-wrap gap-2">
             {/* ✅ Building2 instead of 🏢 */}
             <span className="rounded-full border border-primary/35 bg-primary/10 px-3 py-1 text-xs flex items-center gap-1">
-              <Building2 size={11} /> {jdData?.metadata?.client_name || "VAYUZ Technologies"}
+              <Building2 size={11} /> {jdData?.client_name || "VAYUZ Technologies"}
             </span>
             {/* ✅ MapPin instead of 📍 */}
             <span className="rounded-full border border-primary/35 bg-primary/10 px-3 py-1 text-xs flex items-center gap-1">
-              <MapPin size={11} /> {jdData?.profile?.location || "Remote"}
+              <MapPin size={11} /> {jdData?.location || "Remote"}
             </span>
             {/* ✅ Briefcase instead of 💼 */}
             <span className="rounded-full border border-primary/35 bg-primary/10 px-3 py-1 text-xs flex items-center gap-1">
-              <Briefcase size={11} /> {jdData?.profile?.work_type || "Full-time"}
+              <Briefcase size={11} /> {jdData?.work_type || "Full-time"}
             </span>
             {/* ✅ Wallet instead of 💰 */}
             <span className="rounded-full border border-primary/35 bg-primary/10 px-3 py-1 text-xs flex items-center gap-1">
-              <Wallet size={11} /> {jdData?.profile?.budget || "NA"}
+              <Wallet size={11} /> {jdData?.budget || "NA"}
             </span>
           </div>
           <p className="mb-3 text-sm leading-relaxed text-muted-foreground">
@@ -86,7 +87,7 @@ export function StepJDConsent({ onContinue, onBack, jdData }: StepJDConsentProps
           <div className="text-sm text-muted-foreground">
             <strong className="text-foreground">I agree to record this session</strong>
             <br />
-            The video and audio will be securely processed by Pai.
+            The video and audio will be securely processed by PAI.
           </div>
         </button>
 

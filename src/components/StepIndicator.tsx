@@ -1,20 +1,42 @@
-import { motion } from 'motion/react';
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface StepIndicatorProps {
   currentStep: number;
   totalSteps: number;
 }
 
+const STEP_NAMES: Record<number, string> = {
+  1:  "Welcome",
+  2:  "JD Overview",
+  3:  "Aadhaar Verify",
+  4:  "Photo Capture",
+  5:  "Screen Share",
+  6:  "System Check",
+  7:  "Guidelines",
+  8:  "Get Ready",
+  9:  "Interview",
+  10: "Thank You",
+  11: "Feedback",
+};
+
 export function StepIndicator({ currentStep, totalSteps }: StepIndicatorProps) {
+  const [hoveredStep, setHoveredStep] = useState<number | null>(null);
+
   return (
     <div className="fixed left-8 top-1/2 -translate-y-1/2 z-50 lg:block">
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-5">
         {Array.from({ length: totalSteps }, (_, i) => i + 1).map((step) => {
           const isActive = step === currentStep;
           const isPast = step < currentStep;
           
           return (
-            <div key={step} className="flex items-center gap-3">
+            <div
+              key={step}
+              className="flex items-center gap-3"
+              onMouseEnter={() => setHoveredStep(step)}
+              onMouseLeave={() => setHoveredStep(null)}
+            >
               <motion.div
                 className={`
                   relative w-8 h-8 rounded-full flex items-center justify-center text-xs
@@ -47,6 +69,35 @@ export function StepIndicator({ currentStep, totalSteps }: StepIndicatorProps) {
                     transition={{ duration: 1.5, repeat: Infinity }}
                   />
                 )}
+
+                {/* Tooltip */}
+                <AnimatePresence>
+                  {hoveredStep === step && (
+                    <motion.div
+                      key={`tooltip-${step}`}
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -6 }}
+                      transition={{ duration: 0.18 }}
+                      className="absolute left-10 whitespace-nowrap pointer-events-none"
+                    >
+                      <div
+                        className={`
+                          px-2.5 py-1 rounded-md text-xs font-medium
+                          ${isActive
+                            ? "bg-primary/20 text-primary border border-primary/30"
+                            : isPast
+                            ? "bg-muted/30 text-primary/70 border border-primary/20"
+                            : "bg-muted/20 text-muted-foreground border border-border"
+                          }
+                        `}
+                        style={{ backdropFilter: "blur(8px)" }}
+                      >
+                        {STEP_NAMES[step] ?? `Step ${step}`}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
               
               {step < totalSteps && (

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { MessageSquare, Bug, Workflow, CheckCircle2, Loader2 } from "lucide-react";
+import { toast } from "react-hot-toast";
 
 interface StepCandidateFeedbackProps {
   onSubmit: (feedback: FeedbackData) => void;
@@ -51,11 +52,70 @@ export function StepCandidateFeedback({
 
   const handleSubmit = async () => {
     if (!hasAnyInput) return;
+    
     setIsSubmitting(true);
-    await new Promise((r) => setTimeout(r, 800)); // simulate submit
-    setIsSubmitting(false);
-    setSubmitted(true);
-    setTimeout(() => onSubmit(feedback), 1500);
+
+    try {
+      // Get candidate details from localStorage
+      const candidateId = localStorage.getItem("candidate_id");
+      const candidateEmail = localStorage.getItem("candidate_email");
+
+      if (!candidateId || !candidateEmail) {
+        toast.error("Candidate details not found");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Prepare API payload
+      const payload = {
+        candidate_id: candidateId,
+        email_id: candidateEmail,
+        interview_experience: feedback.interviewExperience.trim() || null,
+        overall_process: feedback.overallProcess.trim() || null,
+        technical_issues: feedback.technicalIssues.trim() || null,
+      };
+
+      // API call
+      const API_BASE = import.meta.env.VITE_API_BASE_URL;
+      const response = await fetch(`${API_BASE}/feedback/submit-feedback`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to submit feedback");
+      }
+
+      const result = await response.json();
+
+      if (result.status_code === 200) {
+        console.log("Feedback submitted successfully:", result.data);
+        setSubmitted(true);
+        toast.success("Feedback submitted successfully!");
+        
+        // Wait 1.5s then call onSubmit
+        setTimeout(() => onSubmit(feedback), 1500);
+      } else {
+        throw new Error(result.message || "Failed to submit feedback");
+      }
+
+    } catch (error) {
+      console.error("Feedback submission error:", error);
+      toast.error(
+        error instanceof Error 
+          ? error.message 
+          : "Failed to submit feedback. Please try again."
+      );
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSkip = () => {
+    console.log("Feedback skipped by user");
+    onSkip();
   };
 
   return (
@@ -97,6 +157,7 @@ export function StepCandidateFeedback({
                     }
                     placeholder={section.placeholder}
                     className="w-full resize-none rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 focus:bg-white/[0.05] transition-colors"
+                    disabled={isSubmitting}
                   />
                 </div>
               ))}
@@ -105,8 +166,9 @@ export function StepCandidateFeedback({
             {/* Buttons */}
             <div className="flex gap-3">
               <button
-                onClick={onSkip}
-                className="flex flex-1 items-center justify-center rounded-xl border border-white/20 px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-white/5"
+                onClick={handleSkip}
+                disabled={isSubmitting}
+                className="flex flex-1 items-center justify-center rounded-xl border border-white/20 px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Skip
               </button>

@@ -1,3 +1,4 @@
+// 
 import { useEffect, useState, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { decryptValue } from "./utils/decrypt";
@@ -147,13 +148,50 @@ export default function App() {
     fetchJDDetails();
   }, [initialUserData?.testId]);
 
-  /* ---------------- FETCH QUESTIONS ---------------- */
+  /* ---------------- EXPIRE LINK API ---------------- */
+  const expireLinkAPI = async (email: string) => {
+    try {
+      const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/pragyan/ai-interview/ai/api/v1";
+      const response = await fetch(`${API_BASE}/link/expire`, {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          candidate_email: email
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Link expiry API call failed');
+      }
+
+      const result = await response.json();
+      console.log('Link expired successfully:', result);
+      return result;
+    } catch (err) {
+      console.error('Error expiring link:', err);
+      throw err;
+    }
+  };
+
+  /* ---------------- FETCH QUESTIONS (with link expiry) ---------------- */
   const questionsFetchedRef = useRef(false);
 
   const fetchInterviewQuestions = async (testId: string) => {
     if (questionsFetchedRef.current) return;
     questionsFetchedRef.current = true;
+    
     try {
+      // PEHLE link expire karo
+      const candidateEmail = localStorage.getItem("candidate_email") || initialUserData?.email;
+      if (candidateEmail) {
+        console.log('Expiring link before fetching questions...');
+        await expireLinkAPI(candidateEmail);
+      }
+
+      // AB questions fetch karo
       const API_BASE = import.meta.env.VITE_API_BASE_URL;
       const res = await fetch(`${API_BASE}/testquestions/qa_test/${testId}`, {
         headers: { accept: "application/json" },
@@ -182,7 +220,12 @@ export default function App() {
   const validateEmailLink = async (email: string) => {
     const API_BASE = import.meta.env.VITE_API_BASE_URL;
     const res = await fetch(`${API_BASE}/link/validate?email=${encodeURIComponent(email)}`);
-    if (!res.ok) throw new Error("Invalid or expired link");
+    if (!res.ok) {
+      const errorData = await res.json();
+      const error: any = new Error(errorData.message || "Invalid or expired link");
+      error.response = { data: errorData };
+      throw error;
+    }
     return res.json();
   };
 
@@ -195,9 +238,17 @@ export default function App() {
       localStorage.setItem("test_id", initialUserData.testId || "");
       localStorage.setItem("auth_token", initialUserData.token || "");
       setCurrentStep(2);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Link validation failed:", err);
-      alert("This interview link is invalid or expired.");
+      
+      // Check if error response has API message
+      if (err?.response?.data?.message) {
+        toast.error(err.response.data.message);
+      } else if (err?.message) {
+        toast.error(err.message);
+      } else {
+        toast.error("This interview link is invalid or expired.");
+      }
     }
   };
 

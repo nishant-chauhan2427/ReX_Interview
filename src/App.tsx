@@ -16,7 +16,7 @@ import { StepGuidelines } from "./components/StepGuidelines";
 import { Step5InterviewReady } from "./components/Step5InterviewReady";
 import { Step6Question } from "./components/Step6Question";
 import { StepThankYou } from "./components/StepThankYou";
-import { StepCandidateFeedback } from "./components/FeedBackScreen"; 
+import { StepCandidateFeedback } from "./components/FeedbackScreen.tsx"; 
 import { postForm, postJSON } from "./utils/api";
 import axios from "axios";
 import { startScreenRecording, stopScreenRecording } from "./utils/screenrecoder";

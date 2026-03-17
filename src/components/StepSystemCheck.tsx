@@ -255,7 +255,7 @@ export function StepSystemCheck({ onContinue, active }: StepSystemCheckProps) {
         </div>
 
         {/* Button */}
-        <button
+        {/* <button
           onClick={onContinue}
           disabled={!canContinue}
           className={`w-full rounded-xl px-4 py-3 text-primary-foreground transition-all ${
@@ -263,8 +263,17 @@ export function StepSystemCheck({ onContinue, active }: StepSystemCheckProps) {
               ? "bg-primary hover:shadow-lg hover:shadow-primary/20"
               : "cursor-not-allowed bg-primary/50"
           }`}
-        >
-          {!allDone ? "Running checks..." : canContinue ? "All Good — Continue →" : "Fix issues to continue"}
+        > */}
+        <button
+  onClick={onContinue}
+  disabled={!canContinue}
+  className={`w-full rounded-xl px-4 py-3 transition-all font-medium ${
+    canContinue
+      ? "bg-primary text-primary-foreground hover:shadow-lg hover:shadow-primary/20"
+      : "cursor-not-allowed border border-white/20 bg-transparent text-white/40"
+  }`}
+>
+          {!allDone ? "Running checks..." : canContinue ? "Continue →" : "Fix issues to continue"}
         </button>
 
       </div>

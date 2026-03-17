@@ -232,22 +232,64 @@ export default function App() {
     }
     return res.json();
   };
-
   const handleStep1Next = async () => {
     try {
       if (!initialUserData?.email) throw new Error("Email missing in URL");
+  
       await validateEmailLink(initialUserData.email);
+  
       localStorage.setItem("candidate_name", initialUserData.name || "");
       localStorage.setItem("candidate_email", initialUserData.email || "");
       localStorage.setItem("test_id", initialUserData.testId || "");
       localStorage.setItem("auth_token", initialUserData.token || "");
+  
+      // ✅ create candidate_id
+      if (!localStorage.getItem("candidate_id")) {
+        const candidateId = generateCandidateId();
+        localStorage.setItem("candidate_id", candidateId);
+        console.log("Generated candidate_id:", candidateId);
+      }
+  
       setCurrentStep(2);
+  
     } catch (err: any) {
       if (err?.response?.data?.message) toast.error(err.response.data.message);
       else if (err?.message) toast.error(err.message);
       else toast.error("This interview link is invalid or expired.");
     }
   };
+
+  const generateCandidateId = () => {
+    const now = new Date();
+  
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+  
+    const datePart = `${year}${month}${day}`;
+  
+    const randomPart = Math.floor(100000 + Math.random() * 900000); // 6 digit
+  
+    return `CAND-${datePart}-${randomPart}`;
+  };
+
+  // const handleStep1Next = async () => {
+  //   try {
+  //     if (!initialUserData?.email) throw new Error("Email missing in URL");
+  //     console.log(initialUserData,"initialUserData12");
+      
+  //     await validateEmailLink(initialUserData.email);
+  //     localStorage.setItem("candidate_name", initialUserData.name || "");
+  //     localStorage.setItem("candidate_email", initialUserData.email || "");
+  //     localStorage.setItem("test_id", initialUserData.testId || "");
+  //     localStorage.setItem("auth_token", initialUserData.token || "");
+  //     setCurrentStep(2);
+  //   } catch (err: any) {
+  //     if (err?.response?.data?.message) toast.error(err.response.data.message);
+  //     else if (err?.message) toast.error(err.message);
+  //     else toast.error("This interview link is invalid or expired.");
+  //   }
+  // };
 
   const handleUserDetails = (data) => {
     const registerCandidateIfNeeded = async () => {

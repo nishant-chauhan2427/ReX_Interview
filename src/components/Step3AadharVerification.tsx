@@ -45,42 +45,96 @@ export function Step3AadharVerification({
 
   const analyzeFrame = () => {
     if (!videoRef.current || !analysisCanvasRef.current) return;
-
+  
     const video = videoRef.current;
     const canvas = analysisCanvasRef.current;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
-    canvas.width = 160;
-    canvas.height = 100;
+  
+    canvas.width = 320;
+    canvas.height = 200;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
+  
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
-
-    let edgeCount = 0;
-
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-      const brightness = (r + g + b) / 3;
-      if (brightness < 90 || brightness > 220) edgeCount++;
+    const W = canvas.width;
+    const H = canvas.height;
+  
+    // Step 1: Grayscale
+    const gray = new Uint8Array(W * H);
+    for (let i = 0; i < gray.length; i++) {
+      gray[i] = data[i * 4] * 0.299 + data[i * 4 + 1] * 0.587 + data[i * 4 + 2] * 0.114;
     }
-
-    const edgeRatio = edgeCount / (data.length / 4);
-    const tooSmall = edgeRatio < 0.08;
-    const tooClose = edgeRatio > 0.35;
-    const aligned = !tooSmall && !tooClose;
-
+  
+    // Step 2: Edge detection
+    let horizontalEdges = 0;
+    let verticalEdges = 0;
+    for (let y = 1; y < H - 1; y++) {
+      for (let x = 1; x < W - 1; x++) {
+        const idx = y * W + x;
+        if (Math.abs(gray[idx + 1] - gray[idx - 1]) > 30) horizontalEdges++;
+        if (Math.abs(gray[idx + W] - gray[idx - W]) > 30) verticalEdges++;
+      }
+    }
+  
+    const totalPixels = W * H;
+    const hRatio = horizontalEdges / totalPixels;
+    const vRatio = verticalEdges / totalPixels;
+  
+    // Step 3: Center region brightness + skin detection
+    const cx = Math.floor(W / 2);
+    const cy = Math.floor(H / 2);
+    const sampleSize = 20;
+    const centerBrightness: number[] = [];
+    let skinPixels = 0;
+  
+    for (let y = cy - sampleSize; y < cy + sampleSize; y++) {
+      for (let x = cx - sampleSize; x < cx + sampleSize; x++) {
+        centerBrightness.push(gray[y * W + x]);
+  
+        // ✅ Skin color detection: R high > G > B pattern
+        const idx = (y * W + x) * 4;
+        const r = data[idx];
+        const g = data[idx + 1];
+        const b = data[idx + 2];
+        if (
+          r > 95 && g > 40 && b > 20 &&
+          r > g && r > b &&
+          Math.abs(r - g) > 15
+        ) {
+          skinPixels++;
+        }
+      }
+    }
+  
+    const totalSamplePixels = centerBrightness.length;
+    const skinRatio = skinPixels / totalSamplePixels;
+    const isSkin = skinRatio > 0.35; // 35%+ skin pixels = face hai, reject karo
+  
+    const avg = centerBrightness.reduce((a, b) => a + b, 0) / centerBrightness.length;
+    const centerVariance =
+      centerBrightness.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / centerBrightness.length;
+  
+    // Step 4: Card detection — flat surface + no skin + balanced edges
+    const isCardLike = centerVariance < 1200 && !isSkin;
+    const hasGoodEdgeBalance =
+      Math.max(hRatio, vRatio) > 0
+        ? Math.min(hRatio, vRatio) / Math.max(hRatio, vRatio) > 0.3
+        : false;
+    const tooSmall = hRatio < 0.03 && vRatio < 0.03;
+    const tooClose = hRatio > 0.25 || vRatio > 0.25;
+  
+    const aligned = isCardLike && hasGoodEdgeBalance && !tooSmall && !tooClose;
+  
     setIsTooSmall(tooSmall);
     setIsTooClose(tooClose);
     setIsAligned(aligned);
-
+  
+    // Step 5: Auto capture — sirf card detect hone par
     if (aligned) {
       if (!stillStartTime) {
         setStillStartTime(Date.now());
-      } else if (Date.now() - stillStartTime > 1000) {
+      } else if (Date.now() - stillStartTime > 1500) {
         capturePhoto();
         setStillStartTime(null);
       }
@@ -89,32 +143,38 @@ export function Step3AadharVerification({
     }
   };
 
+  // useEffect(() => {
+  //   if (!isCameraActive) return;
+  //   const interval = setInterval(analyzeFrame, 300);
+  //   return () => clearInterval(interval);
+  // }, [isCameraActive, captureMode, frontImage, backImage]);
   useEffect(() => {
     if (!isCameraActive) return;
     const interval = setInterval(analyzeFrame, 300);
     return () => clearInterval(interval);
-  }, [isCameraActive, captureMode, frontImage, backImage]);
-
+  }, [isCameraActive, captureMode, frontImage, backImage, stillStartTime]); // ✅ stillStartTime add kiya
   const startCamera = async () => {
+    // ✅ Stream exist karta hai to video re-attach karo, early return mat karo
     if (stream) {
-      if (videoRef.current && videoRef.current.srcObject !== stream) {
+      if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play().catch((e) => console.log("Play error:", e));
+        setIsCameraActive(true); // ✅ ensure active state
       }
       return;
     }
-
+  
     try {
       setCameraError(null);
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
       });
-
+  
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         await videoRef.current.play();
       }
-
+  
       setStream(mediaStream);
       setIsCameraActive(true);
       setUseFileUpload(false);
@@ -124,6 +184,35 @@ export function Step3AadharVerification({
       setCameraError("Unable to access camera. Please upload image.");
     }
   };
+  // const startCamera = async () => {
+  //   if (stream) {
+  //     if (videoRef.current && videoRef.current.srcObject !== stream) {
+  //       videoRef.current.srcObject = stream;
+  //       await videoRef.current.play().catch((e) => console.log("Play error:", e));
+  //     }
+  //     return;
+  //   }
+
+  //   try {
+  //     setCameraError(null);
+  //     const mediaStream = await navigator.mediaDevices.getUserMedia({
+  //       video: { facingMode: "environment" },
+  //     });
+
+  //     if (videoRef.current) {
+  //       videoRef.current.srcObject = mediaStream;
+  //       await videoRef.current.play();
+  //     }
+
+  //     setStream(mediaStream);
+  //     setIsCameraActive(true);
+  //     setUseFileUpload(false);
+  //   } catch (err: any) {
+  //     setIsCameraActive(false);
+  //     setUseFileUpload(true);
+  //     setCameraError("Unable to access camera. Please upload image.");
+  //   }
+  // };
 
   const stopCamera = () => {
     if (videoRef.current) videoRef.current.srcObject = null;
@@ -137,6 +226,26 @@ export function Step3AadharVerification({
     onNext(null);
   };
 
+  // const capturePhoto = () => {
+  //   if (videoRef.current && canvasRef.current) {
+  //     const video = videoRef.current;
+  //     const canvas = canvasRef.current;
+  //     canvas.width = video.videoWidth;
+  //     canvas.height = video.videoHeight;
+  //     const context = canvas.getContext("2d");
+  //     if (context) {
+  //       context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  //       const imageData = canvas.toDataURL("image/png");
+  //       if (captureMode === "front") {
+  //         setFrontImage(imageData);
+  //         setCaptureMode("back");
+  //       } else {
+  //         setBackImage(imageData);
+  //         stopCamera();
+  //       }
+  //     }
+  //   }
+  // };
   const capturePhoto = () => {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
@@ -149,7 +258,15 @@ export function Step3AadharVerification({
         const imageData = canvas.toDataURL("image/png");
         if (captureMode === "front") {
           setFrontImage(imageData);
+          setStillStartTime(null); // ✅ Fix 3: reset timer
           setCaptureMode("back");
+          // ✅ Fix 1: re-attach stream after React re-renders
+          setTimeout(() => {
+            if (videoRef.current && stream) {
+              videoRef.current.srcObject = stream;
+              videoRef.current.play().catch(() => {});
+            }
+          }, 100);
         } else {
           setBackImage(imageData);
           stopCamera();
@@ -157,7 +274,6 @@ export function Step3AadharVerification({
       }
     }
   };
-
   const retakePhoto = (mode: CaptureMode) => {
     if (mode === "front") {
       setFrontImage(null);
@@ -168,6 +284,7 @@ export function Step3AadharVerification({
     }
     if (!isCameraActive) startCamera();
   };
+
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -257,13 +374,13 @@ export function Step3AadharVerification({
           ? "border-red-500"
           : "border-white/40";
 
-    const message = isAligned
-      ? "Perfect! Hold still…"
-      : isTooSmall
-        ? "Move closer"
-        : isTooClose
-          ? "Move farther"
-          : "Align Aadhaar card inside the frame";
+          const message = isAligned
+          ? "Card detected! Hold still…"
+          : isTooSmall
+            ? "Move closer to the card"
+            : isTooClose
+              ? "Move farther from the card"
+              : "Place Aadhaar card flat inside the frame";
 
     return (
       <div className="pointer-events-none absolute inset-0">

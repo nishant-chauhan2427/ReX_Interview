@@ -920,7 +920,7 @@ export function Step6Question({
 
   const progress = (questionNumber / totalQuestions) * 100;
 
-  const defaultSubmitLabel = isLastQuestion ? "Complete Interview" : "Submit & Continue";
+  const defaultSubmitLabel = isLastQuestion ? "Complete Interview" : "Submit Answer";
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-background">
@@ -1156,7 +1156,7 @@ export function Step6Question({
               )}
 
               {/* ✅ Submit button with inline loader */}
-              <motion.button
+              {/* <motion.button
                 onClick={() => handleFinalSubmit(false)}
                 disabled={isSubmitting || isTranscribing}
                 className={`w-full px-6 py-4 rounded-xl transition-all font-medium flex items-center justify-center gap-2
@@ -1174,8 +1174,36 @@ export function Step6Question({
                 ) : (
                   defaultSubmitLabel
                 )}
-              </motion.button>
-
+              </motion.button> */}
+{/* ✅ Submit button with inline loader — disabled until answer is provided */}
+{(() => {
+  const hasAnswer =
+    (question.type === "multiple-choice" && !!selectedAnswer) ||
+    (question.type === "open-ended" && showTranscript && !!transcript.trim());
+  // const isDisabled = isSubmitting || isTranscribing || !hasAnswer;
+  const isDisabled = isSubmitting || isTranscribing || (!isLastQuestion && !hasAnswer);
+  return (
+    <motion.button
+      onClick={() => handleFinalSubmit(false)}
+      disabled={isDisabled}
+      className={`w-full px-6 py-4 rounded-xl transition-all font-medium flex items-center justify-center gap-2
+       ${isDisabled
+        ? "bg-primary/40 text-primary-foreground/60 cursor-not-allowed opacity-60"
+        : "bg-primary text-primary-foreground hover:shadow-lg"} border border-border`}
+      whileHover={!isDisabled ? { scale: 1.01 } : {}}
+      whileTap={!isDisabled ? { scale: 0.99 } : {}}
+    >
+      {isSubmitting ? (
+        <>
+          <Loader2 className="w-4 h-4 animate-spin" />
+          {submitLabel ?? defaultSubmitLabel}
+        </>
+      ) : (
+        defaultSubmitLabel
+      )}
+    </motion.button>
+  );
+})()}
               {/* Skip */}
               {questionNumber < totalQuestions && (
                 <motion.button onClick={handleSkip}

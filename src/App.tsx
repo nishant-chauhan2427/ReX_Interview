@@ -246,23 +246,88 @@ export default function App() {
     }
     return res.json();
   };
+  const generateSessionId = () => {
+    const now = new Date();
+    const datePart = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}`;
+    const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
+    return `PAI-${datePart}-${randomPart}`;
+  };
+  
+  // const handleStep1Next = async () => {
+  //   try {
+  //     if (!initialUserData?.email) throw new Error("Email missing in URL");
+  
+  //     await validateEmailLink(initialUserData.email);
+  
+  //     localStorage.setItem("candidate_name", initialUserData.name || "");
+  //     localStorage.setItem("candidate_email", initialUserData.email || "");
+  //     localStorage.setItem("test_id", initialUserData.testId || "");
+  //     localStorage.setItem("auth_token", initialUserData.token || "");
+  
+  //     // ✅ create candidate_id
+  //     if (!localStorage.getItem("candidate_id")) {
+  //       const candidateId = generateCandidateId();
+  //       localStorage.setItem("candidate_id", candidateId);
+  //       console.log("Generated candidate_id:", candidateId);
+  //     }
+  //     if (!localStorage.getItem("session_id")) {
+  //       localStorage.setItem("session_id", generateSessionId());
+  //     }
+  
+  //     setCurrentStep(2);
+  
+  //   } catch (err: any) {
+  //     if (err?.response?.data?.message) toast.error(err.response.data.message);
+  //     else if (err?.message) toast.error(err.message);
+  //     else toast.error("This interview link is invalid or expired.");
+  //   }
+  // };
   const handleStep1Next = async () => {
     try {
       if (!initialUserData?.email) throw new Error("Email missing in URL");
   
+      // ✅ Step 1: Validate link
       await validateEmailLink(initialUserData.email);
   
-      localStorage.setItem("candidate_name", initialUserData.name || "");
-      localStorage.setItem("candidate_email", initialUserData.email || "");
-      localStorage.setItem("test_id", initialUserData.testId || "");
-      localStorage.setItem("auth_token", initialUserData.token || "");
-  
-      // ✅ create candidate_id
+      // ✅ Step 2: Register candidate (API call yahan)
       if (!localStorage.getItem("candidate_id")) {
-        const candidateId = generateCandidateId();
-        localStorage.setItem("candidate_id", candidateId);
-        console.log("Generated candidate_id:", candidateId);
+        const recaptchaKey = import.meta.env.VITE_RECAPTCHA_KEY as string | undefined;
+        let captchaToken = "";
+  
+        if (recaptchaKey) {
+          if (!window.grecaptcha) {
+            await new Promise<void>((resolve, reject) => {
+              const script = document.createElement("script");
+              script.src = `https://www.google.com/recaptcha/api.js?render=${recaptchaKey}`;
+              script.async = true;
+              script.onload = () => resolve();
+              script.onerror = () => reject(new Error("Failed to load reCAPTCHA"));
+              document.body.appendChild(script);
+            });
+          }
+          captchaToken = await new Promise<string>((resolve, reject) => {
+            window.grecaptcha.ready(() => {
+              window.grecaptcha.execute(recaptchaKey, { action: "submit" }).then(resolve).catch(reject);
+            });
+          });
+        }
+  
+        const regResponse = await postJSON("/register/candidate", {
+          name: initialUserData.name,
+          email: initialUserData.email,
+          test_id: initialUserData.testId,
+          ...(captchaToken ? { recaptcha_token: captchaToken } : {}),
+        });
+  
+        localStorage.setItem("candidate_name", regResponse.name || initialUserData.name);
+        localStorage.setItem("candidate_email", initialUserData.email);
+        localStorage.setItem("test_id", regResponse.test_id || initialUserData.testId);
+        localStorage.setItem("candidate_id", regResponse.candidate_id);
+        localStorage.setItem("session_id", regResponse.session_id);
       }
+  
+      // ✅ Step 3: Baki localStorage set karo
+      localStorage.setItem("auth_token", initialUserData.token || "");
   
       setCurrentStep(2);
   
@@ -273,60 +338,59 @@ export default function App() {
     }
   };
 
-
  
-  const handleUserDetails = (data) => {
-    const registerCandidateIfNeeded = async () => {
-      const existing = localStorage.getItem("candidate_id");
-      if (existing) return;
-      if (!initialUserData?.name || !initialUserData?.email || !initialUserData?.testId)
-        throw new Error("Candidate registration data missing");
+  // const handleUserDetails = (data) => {
+  //   const registerCandidateIfNeeded = async () => {
+  //     const existing = localStorage.getItem("candidate_id");
+  //     if (existing) return;
+  //     if (!initialUserData?.name || !initialUserData?.email || !initialUserData?.testId)
+  //       throw new Error("Candidate registration data missing");
 
-      const recaptchaKey = import.meta.env.VITE_RECAPTCHA_KEY as string | undefined;
-      let captchaToken = "";
+  //     const recaptchaKey = import.meta.env.VITE_RECAPTCHA_KEY as string | undefined;
+  //     let captchaToken = "";
 
-      if (recaptchaKey) {
-        if (!window.grecaptcha) {
-          await new Promise<void>((resolve, reject) => {
-            const script = document.createElement("script");
-            script.src = `https://www.google.com/recaptcha/api.js?render=${recaptchaKey}`;
-            script.async = true;
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error("Failed to load reCAPTCHA"));
-            document.body.appendChild(script);
-          });
-        }
-        captchaToken = await new Promise<string>((resolve, reject) => {
-          window.grecaptcha.ready(() => {
-            window.grecaptcha.execute(recaptchaKey, { action: "submit" }).then(resolve).catch(reject);
-          });
-        });
-      }
+  //     if (recaptchaKey) {
+  //       if (!window.grecaptcha) {
+  //         await new Promise<void>((resolve, reject) => {
+  //           const script = document.createElement("script");
+  //           script.src = `https://www.google.com/recaptcha/api.js?render=${recaptchaKey}`;
+  //           script.async = true;
+  //           script.onload = () => resolve();
+  //           script.onerror = () => reject(new Error("Failed to load reCAPTCHA"));
+  //           document.body.appendChild(script);
+  //         });
+  //       }
+  //       captchaToken = await new Promise<string>((resolve, reject) => {
+  //         window.grecaptcha.ready(() => {
+  //           window.grecaptcha.execute(recaptchaKey, { action: "submit" }).then(resolve).catch(reject);
+  //         });
+  //       });
+  //     }
 
-      const regResponse = await postJSON("/register/candidate", {
-        name: initialUserData.name,
-        email: initialUserData.email,
-        test_id: initialUserData.testId,
-        ...(captchaToken ? { recaptcha_token: captchaToken } : {}),
-      });
+  //     const regResponse = await postJSON("/register/candidate", {
+  //       name: initialUserData.name,
+  //       email: initialUserData.email,
+  //       test_id: initialUserData.testId,
+  //       ...(captchaToken ? { recaptcha_token: captchaToken } : {}),
+  //     });
 
-      localStorage.setItem("candidate_name", regResponse.name || initialUserData.name);
-      localStorage.setItem("candidate_email", initialUserData.email);
-      localStorage.setItem("test_id", regResponse.test_id || initialUserData.testId);
-      localStorage.setItem("candidate_id", regResponse.candidate_id);
-      localStorage.setItem("session_id", regResponse.session_id);
-    };
+  //     localStorage.setItem("candidate_name", regResponse.name || initialUserData.name);
+  //     localStorage.setItem("candidate_email", initialUserData.email);
+  //     localStorage.setItem("test_id", regResponse.test_id || initialUserData.testId);
+  //     localStorage.setItem("candidate_id", regResponse.candidate_id);
+  //     localStorage.setItem("session_id", regResponse.session_id);
+  //   };
 
-    (async () => {
-      try {
-        await registerCandidateIfNeeded();
-        setUserDetails(data);
-        handleNext();
-      } catch (err: any) {
-        toast.error(err?.message || "Failed to register candidate");
-      }
-    })();
-  };
+  //   (async () => {
+  //     try {
+  //       await registerCandidateIfNeeded();
+  //       setUserDetails(data);
+  //       handleNext();
+  //     } catch (err: any) {
+  //       toast.error(err?.message || "Failed to register candidate");
+  //     }
+  //   })();
+  // };
 
   const startCamera = async () => {
     if (cameraStream) return cameraStream;

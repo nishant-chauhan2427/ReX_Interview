@@ -529,7 +529,8 @@ export function Step4PhotoCapture({ cameraStream, onNext }: Step4PhotoCapturePro
   {status === "loading" ? (
     <span className="inline-flex items-center justify-center gap-2">
       <Loader2 className="h-4 w-4 animate-spin" />
-      Loading face model…
+      {/* Loading face model… */}
+      Preparing camera, please wait…
     </span>
   ) : isHolding ? (
     <span className="inline-flex items-center justify-center gap-2 text-yellow-300">

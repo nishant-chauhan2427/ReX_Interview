@@ -1180,7 +1180,7 @@ export function Step6Question({
   const hasAnswer =
     (question.type === "multiple-choice" && !!selectedAnswer) ||
     (question.type === "open-ended" && showTranscript && !!transcript.trim());
-  // const isDisabled = isSubmitting || isTranscribing || !hasAnswer;
+  
   const isDisabled = isSubmitting || isTranscribing || (!isLastQuestion && !hasAnswer);
   return (
     <motion.button

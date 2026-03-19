@@ -52,7 +52,8 @@ export function StepScreenShare({ cameraStream, onNext }: StepScreenShareProps) 
   }, [cameraStream, onNext]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
+ 
+    <div className="min-h-screen flex items-center justify-center p-6 pb-16 pt-14">
 
       {/* Step-by-step guide overlay before dialog opens */}
       {showGuide && (
@@ -77,12 +78,12 @@ export function StepScreenShare({ cameraStream, onNext }: StepScreenShareProps) 
             </ol>
 
             <button
-              onClick={startShare}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-primary-foreground transition-all hover:shadow-lg hover:shadow-primary/20"
-            >
-              <MonitorPlay className="h-4 w-4" />
-              Open Share Dialog
-            </button>
+  onClick={startShare}
+  className="mx-auto flex items-center justify-center gap-2 rounded-xl bg-primary px-8 py-3 text-sm text-primary-foreground transition-all hover:shadow-lg hover:shadow-primary/20 whitespace-nowrap"
+>
+  <MonitorPlay className="h-4 w-4" />
+  Open Share Dialog
+</button>
           </div>
         </div>
       )}
@@ -131,21 +132,21 @@ export function StepScreenShare({ cameraStream, onNext }: StepScreenShareProps) 
 
         {/* Button */}
         {!sharing ? (
-          <button
-            onClick={() => setShowGuide(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-primary-foreground transition-all hover:shadow-lg hover:shadow-primary/20"
-          >
-            <MonitorPlay className="h-4 w-4" />
-            Share Entire Screen
-          </button>
-        ) : (
-          <button
-            onClick={handleContinue}
-            className="w-full rounded-xl bg-primary px-4 py-3 text-primary-foreground transition-all hover:shadow-lg hover:shadow-primary/20"
-          >
-            Continue →
-          </button>
-        )}
+  <button
+    onClick={() => setShowGuide(true)}
+    className="mx-auto flex items-center justify-center gap-2 rounded-xl bg-primary px-8 py-3 text-sm text-primary-foreground transition-all hover:shadow-lg hover:shadow-primary/20 whitespace-nowrap"
+  >
+    <MonitorPlay className="h-4 w-4" />
+    Share Entire Screen
+  </button>
+) : (
+  <button
+    onClick={handleContinue}
+    className="mx-auto block rounded-xl bg-primary px-8 py-3 text-sm text-primary-foreground transition-all hover:shadow-lg hover:shadow-primary/20 whitespace-nowrap"
+  >
+    Continue →
+  </button>
+)}
       </div>
     </div>
   );

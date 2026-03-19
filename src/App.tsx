@@ -544,7 +544,8 @@ export default function App() {
 
       {/* <div className="relative z-10 min-h-screen w-full text-foreground px-4 py-4"> */}
       {/* <div className="relative z-10 min-h-screen w-full text-foreground pl-16 pr-4 py-4"> */}
-      <div className="relative z-10 min-h-screen w-full text-foreground pl-16 pr-4 pt-14 pb-4">
+
+      <div className="relative z-10 min-h-screen w-full text-foreground pl-16 pr-4 pt-14 pb-16">
         {/* <header className={`fixed left-12 ${alertOpen ? "top-14" : "top-4"}`}> */}
         <header className="fixed left-12 top-4 z-20">
           <motion.div className="flex justify-start items-center">
@@ -663,10 +664,14 @@ export default function App() {
 
         </AnimatePresence>
 
-        <motion.div className="fixed w-full bottom-0 flex justify-center items-center">
+        {/* <motion.div className="fixed w-full bottom-0 flex justify-center items-center">
           Powered by
           <img src="/PRAGYAN.AI-logo-dark.svg" alt="PRAGYAN.AI Logo" className="h-8 object-contain" />
-        </motion.div>
+        </motion.div> */}
+        <motion.div className="fixed w-full bottom-0 left-0 z-10 flex justify-center items-center py-2 bg-[rgba(10,12,18,0.85)] backdrop-blur-sm">
+  Powered by
+  <img src="/PRAGYAN.AI-logo-dark.svg" alt="PRAGYAN.AI Logo" className="h-8 object-contain" />
+</motion.div>
       </div>
     </>
   );

@@ -380,7 +380,7 @@ export function Step3AadharVerification({
             ? "Move closer to the card"
             : isTooClose
               ? "Move farther from the card"
-              : "Place Aadhaar card flat inside the frame";
+              : "Place Aadhaar card inside the frame";
 
     return (
       <div className="pointer-events-none absolute inset-0">
@@ -403,7 +403,8 @@ export function Step3AadharVerification({
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
+    // <div className="min-h-screen flex items-center justify-center p-6">
+      <div className="min-h-screen flex items-center justify-center p-6 pb-16 pt-14">
       <motion.div
         initial={{ opacity: 0, x: 50 }}
         animate={{ opacity: 1, x: 0 }}
@@ -568,13 +569,84 @@ export function Step3AadharVerification({
           {/* Tip */}
           <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.03] p-3">
             <p className="text-sm text-muted-foreground">
-              <span className="text-primary font-medium">Tip:</span> Ensure the Aadhar card is clearly visible,
+              <span className="text-primary font-medium">Tip:</span> Ensure the Aadhaar card is clearly visible,
               well-lit, and all details are readable. Avoid glare and shadows.
             </p>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-3">
+          {/* Action Buttons */}
+{/* Action Buttons */}
+{/* Action Buttons */}
+{/* Action Buttons */}
+<div className="flex justify-center gap-3">
+  <motion.button
+    onClick={handleSkip}
+    className="rounded-xl border border-white/20 px-8 py-3 text-sm text-muted-foreground transition-colors hover:bg-white/5 whitespace-nowrap"
+    whileHover={{ scale: 1.01 }}
+    whileTap={{ scale: 0.99 }}
+  >
+    Skip for now
+  </motion.button>
+
+  <AnimatePresence mode="wait">
+    {isCameraActive &&
+      ((captureMode === "front" && !frontImage) ||
+        (captureMode === "back" && !backImage)) && (
+        <motion.button
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          onClick={capturePhoto}
+          className="flex items-center justify-center gap-2 rounded-xl bg-primary px-8 py-3 text-sm text-primary-foreground transition-all hover:shadow-lg hover:shadow-primary/20 whitespace-nowrap"
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
+        >
+          <Camera className="h-4 w-4" />
+          Capture {captureMode === "front" ? "Front" : "Back"}
+        </motion.button>
+      )}
+
+    {(useFileUpload || cameraError) &&
+      ((captureMode === "front" && !frontImage) ||
+        (captureMode === "back" && !backImage)) && (
+        <motion.button
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          onClick={triggerFileUpload}
+          className="flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/[0.03] px-8 py-3 text-sm text-foreground transition-all hover:bg-white/[0.06] whitespace-nowrap"
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
+        >
+          <Upload className="h-4 w-4" />
+          Upload {captureMode === "front" ? "Front" : "Back"}
+        </motion.button>
+      )}
+
+    {canProceed && (
+      <motion.button
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        onClick={handleNext}
+        className="flex items-center justify-center gap-2 rounded-xl bg-primary px-8 py-3 text-sm text-primary-foreground transition-all hover:shadow-lg hover:shadow-primary/20 whitespace-nowrap"
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
+      >
+        {isLoading ? (
+          <>
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            Verifying…
+          </>
+        ) : (
+          "Continue →"
+        )}
+      </motion.button>
+    )}
+  </AnimatePresence>
+</div>
+          {/* <div className="flex gap-3">
             <AnimatePresence mode="wait">
               {isCameraActive &&
                 ((captureMode === "front" && !frontImage) ||
@@ -642,7 +714,7 @@ export function Step3AadharVerification({
                 "Capture both sides"
               )}
             </motion.button>
-          </div>
+          </div> */}
         </div>
       </motion.div>
     </div>

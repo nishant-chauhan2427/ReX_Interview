@@ -542,8 +542,11 @@ export default function App() {
       />
       <ParticleCanvas isDark={isDark} />
 
-      <div className="relative z-10 min-h-screen w-full text-foreground px-4 py-4">
-        <header className={`fixed left-12 ${alertOpen ? "top-14" : "top-4"}`}>
+      {/* <div className="relative z-10 min-h-screen w-full text-foreground px-4 py-4"> */}
+      {/* <div className="relative z-10 min-h-screen w-full text-foreground pl-16 pr-4 py-4"> */}
+      <div className="relative z-10 min-h-screen w-full text-foreground pl-16 pr-4 pt-14 pb-4">
+        {/* <header className={`fixed left-12 ${alertOpen ? "top-14" : "top-4"}`}> */}
+        <header className="fixed left-12 top-4 z-20">
           <motion.div className="flex justify-start items-center">
             <img src="/VAYUZ-logo-hd.png" alt="VAYUZ" className="h-8 object-contain" />
           </motion.div>

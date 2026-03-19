@@ -419,9 +419,9 @@ export function Step3AadharVerification({
               <CreditCard className="h-5 w-5 text-primary" strokeWidth={1.5} />
             </div>
             <div>
-              <h2 className="text-2xl font-bold">Aadhar Verification</h2>
+              <h2 className="text-2xl font-bold">Aadhaar Verification</h2>
               <p className="text-sm text-muted-foreground">
-                Capture clear photos of your Aadhar card (front and back)
+                Capture clear photos of your Aaadhaar card (front and back)
               </p>
             </div>
           </div>
@@ -544,7 +544,7 @@ export function Step3AadharVerification({
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
 
           {/* Error Message */}
-          <AnimatePresence>
+          {/* <AnimatePresence>
             {cameraError && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
@@ -564,7 +564,7 @@ export function Step3AadharVerification({
                 </div>
               </motion.div>
             )}
-          </AnimatePresence>
+          </AnimatePresence> */}
 
           {/* Tip */}
           <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.03] p-3">

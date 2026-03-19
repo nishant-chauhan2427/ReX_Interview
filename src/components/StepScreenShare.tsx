@@ -140,12 +140,18 @@ export function StepScreenShare({ cameraStream, onNext }: StepScreenShareProps) 
     Share Entire Screen
   </button>
 ) : (
+  // <button
+  //   onClick={handleContinue}
+  //   className="mx-auto block rounded-xl bg-primary px-8 py-3 text-sm text-primary-foreground transition-all hover:shadow-lg hover:shadow-primary/20 whitespace-nowrap"
+  // >
+  //   Continue →
+  // </button>
   <button
-    onClick={handleContinue}
-    className="mx-auto block rounded-xl bg-primary px-8 py-3 text-sm text-primary-foreground transition-all hover:shadow-lg hover:shadow-primary/20 whitespace-nowrap"
-  >
-    Continue →
-  </button>
+  onClick={handleContinue}
+  className="mx-auto block rounded-xl bg-primary px-8 py-3 text-sm text-primary-foreground transition-all hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/20 whitespace-nowrap"
+>
+  Continue →
+</button>
 )}
       </div>
     </div>

@@ -182,54 +182,39 @@ export function StepSystemCheck({ onContinue, active }: StepSystemCheckProps) {
   }, [active]);
 
   const canContinue = useMemo(() => checks.every((c) => c.status === "ok"), [checks]);
-
   const allDone = checks.every((c) => c.status !== "checking");
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="w-full max-w-[38rem] rounded-3xl border border-white/10 bg-[rgba(20,22,30,0.85)] p-8 md:p-10 shadow-2xl backdrop-blur-sm">
+    <div className="min-h-screen flex items-center justify-center p-4 pb-20 pt-14">
+      <div className="w-full max-w-[38rem] rounded-3xl border border-white/10 bg-[rgba(20,22,30,0.85)] p-5 md:p-8 shadow-2xl backdrop-blur-sm">
 
-        {/* Progress */}
-        {/* <div className="mb-6">
-          <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-            <span>Step 6 of 11</span>
-            <span>System Check</span>
-          </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
-            <div className="h-full w-[55%] rounded-full bg-primary" />
-          </div>
-        </div> */}
-
-        {/* Icon + Title — centered */}
+        {/* Icon + Title */}
         <div className="mb-3 flex justify-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-primary/30 bg-primary/10">
             <Monitor className="h-6 w-6 text-primary" strokeWidth={1.5} />
           </div>
         </div>
-        <h2 className="mb-2 text-center text-3xl font-bold">System Check</h2>
-        <p className="mb-6 text-center text-sm text-muted-foreground">
+        <h2 className="mb-1 text-center text-2xl md:text-3xl font-bold">System Check</h2>
+        <p className="mb-4 text-center text-sm text-muted-foreground">
           Verifying your setup before the interview begins.
         </p>
 
         {/* Checks List */}
-        <div className="mb-6 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <div className="mb-4 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
           {checks.map((item) => (
             <div
               key={item.key}
-              className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3"
+              className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"
             >
-              {/* Icon */}
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-primary">
                 {item.icon}
               </span>
 
-              {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-foreground">{item.name}</div>
                 <div className="truncate text-xs text-muted-foreground">{item.value}</div>
               </div>
 
-              {/* Status */}
               <div className="shrink-0">
                 {item.status === "checking" && (
                   <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -255,26 +240,19 @@ export function StepSystemCheck({ onContinue, active }: StepSystemCheckProps) {
         </div>
 
         {/* Button */}
-        {/* <button
-          onClick={onContinue}
-          disabled={!canContinue}
-          className={`w-full rounded-xl px-4 py-3 text-primary-foreground transition-all ${
-            canContinue
-              ? "bg-primary hover:shadow-lg hover:shadow-primary/20"
-              : "cursor-not-allowed bg-primary/50"
-          }`}
-        > */}
-        <button
-  onClick={onContinue}
-  disabled={!canContinue}
-  className={`w-full rounded-xl px-4 py-3 transition-all font-medium ${
-    canContinue
-      ? "bg-primary text-primary-foreground hover:shadow-lg hover:shadow-primary/20"
-      : "cursor-not-allowed border border-white/20 bg-transparent text-white/40"
-  }`}
->
-          {!allDone ? "Running checks..." : canContinue ? "Continue →" : "Fix issues to continue"}
-        </button>
+        <div className="flex justify-center">
+          <button
+            onClick={onContinue}
+            disabled={!canContinue}
+            className={`rounded-xl px-8 py-3 text-sm font-medium transition-all whitespace-nowrap ${
+              canContinue
+                ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/20"
+                : "cursor-not-allowed border border-white/20 bg-transparent text-white/40"
+            }`}
+          >
+            {!allDone ? "Running checks..." : canContinue ? "Continue →" : "Fix issues to continue"}
+          </button>
+        </div>
 
       </div>
     </div>
